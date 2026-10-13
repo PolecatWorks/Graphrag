@@ -72,6 +72,7 @@ impl AppConfig {
 mod tests {
     use super::*;
     use hams::hams::config::HamsConfig;
+    use rstest::rstest;
     use std::env;
     use std::io::Write;
     use std::sync::Mutex;
@@ -224,5 +225,82 @@ mod tests {
             },
         };
         assert!(config.validate().is_err());
+    }
+
+    fn valid_llm_config() -> LlmConfig {
+        LlmConfig {
+            provider: "ollama".to_string(),
+            base_url: "http://localhost:11434/v1".to_string(),
+            api_key: Some("test-key".to_string()),
+            model: "llama3".to_string(),
+            timeout_seconds: 60,
+        }
+    }
+
+    #[test]
+    fn test_llm_config_validate_success() {
+        let config = valid_llm_config();
+        assert_eq!(config.validate(), Ok(()));
+    }
+
+    #[rstest]
+    #[case("")]
+    #[case(" ")]
+    #[case("  ")]
+    #[case("\t")]
+    #[case("\n")]
+    #[case(" \t\n ")]
+    fn test_llm_config_validate_empty_provider(#[case] provider: &str) {
+        let mut config = valid_llm_config();
+        config.provider = provider.to_string();
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "llm.provider must not be empty");
+    }
+
+    #[rstest]
+    #[case("")]
+    #[case(" ")]
+    #[case("  ")]
+    #[case("\t")]
+    #[case("\n")]
+    #[case(" \t\n ")]
+    fn test_llm_config_validate_empty_base_url(#[case] base_url: &str) {
+        let mut config = valid_llm_config();
+        config.base_url = base_url.to_string();
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "llm.base_url must not be empty");
+    }
+
+    #[rstest]
+    #[case("")]
+    #[case(" ")]
+    #[case("  ")]
+    #[case("\t")]
+    #[case("\n")]
+    #[case(" \t\n ")]
+    fn test_llm_config_validate_empty_model(#[case] model: &str) {
+        let mut config = valid_llm_config();
+        config.model = model.to_string();
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "llm.model must not be empty");
+    }
+
+    #[test]
+    fn test_llm_config_validate_zero_timeout() {
+        let mut config = valid_llm_config();
+        config.timeout_seconds = 0;
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "llm.timeout_seconds must be greater than 0"
+        );
     }
 }
