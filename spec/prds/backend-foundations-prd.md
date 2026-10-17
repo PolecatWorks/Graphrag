@@ -46,24 +46,50 @@ flowchart TD
 - A root-level `Makefile` exposes targets to simplify the build, test, and run cycles.
 - Targets should include: `make dev` (start server with port cleanup), `make watch` (hot-reloading via cargo watch), `make migrate`, and `make test`.
 
-### 1. Configuration Loading
-**Objective:** Guarantee that the application operates only with valid, well-formed configuration, failing immediately upon startup if any properties are missing or invalid.
+### 1. Configuration Loading & Typed Error Hierarchy
+**Objective:** Guarantee that the application operates only with valid, well-formed configuration and structured, inspectable error types, failing immediately upon startup if any properties are missing or invalid.
 - **Centralized Loader:** All application configuration must be loaded into strongly typed structs at startup (e.g., via `config` or `figment` crate).
-- **Modular Config Ownership & Delegated Validation:** Each domain module (`db`, `llm_tools`, etc.) defines and owns its specific configuration struct (`DatabaseConfig`, `LlmConfig`), implements its own `.validate()` method, and maintains unit tests covering its field-level validation rules. The central `AppConfig` composes these domain structs, validates top-level server properties, and delegates domain validation to each subsystem (`self.database.validate()?`, `self.llm.validate()?`), with tests in `config` verifying top-level loading and validation delegation.
+- **Modular Config Ownership & Delegated Validation:** Each domain module (`db`, `llm_tools`, etc.) defines and owns its specific configuration struct (`DatabaseConfig`, `LlmConfig`), implements its own `.validate()` method returning its domain `thiserror::Error` enum (`DatabaseError`, `LlmError`), and maintains unit tests covering its field-level validation rules. The central `AppConfig` composes these domain structs, validates top-level server properties, and delegates domain validation to each subsystem (`self.database.validate()?`, `self.llm.validate()?`) into `ConfigError` via `#[error(transparent)]`.
+- **No Stringly-Typed Errors (`Result<_, String>`):** All modules (`config`, `db`, `llm_tools`, `hams_tools`) must use strongly typed `thiserror::Error` enums (`ConfigError`, `DatabaseError`, `LlmError`, `HamsError`) instead of `String` errors.
 - **Fail-Fast Validation:** The system must validate the configuration scheme before establishing database connections or binding network listeners.
 - **Zero Direct Runtime Environment Variables:** Accessing environment variables directly in business logic (e.g., `std::env::var`) is strictly prohibited. All environment variables must be loaded and merged into the central `AppConfig` at startup.
 - **No Hardcoded Defaults in Logic:** Hardcoded fallback values in handlers or execution paths are not allowed.
 
 ```mermaid
-flowchart LR
-    AppConfig["AppConfig::validate()\n(src/config.rs)"]
-    DBConfig["DatabaseConfig::validate()\n(src/db.rs)"]
-    LLMConfig["LlmConfig::validate()\n(src/llm_tools.rs)"]
+classDiagram
+    class ConfigError {
+        <<enumeration>>
+        ZeroServerPort
+        Database(DatabaseError)
+        Llm(LlmError)
+    }
+    class DatabaseError {
+        <<enumeration>>
+        EmptyUrl
+        ZeroPoolSize
+        ZeroTimeout
+        ConnectionFailed(sqlx::Error)
+        ExtensionQueryFailed(sqlx::Error)
+        PgVectorNotEnabled
+        MigrationFailed(MigrateError)
+    }
+    class LlmError {
+        <<enumeration>>
+        EmptyProvider
+        EmptyBaseUrl
+        EmptyModel
+        ZeroTimeout
+        ClientInit(http_client::Error)
+    }
+    class HamsError {
+        <<enumeration>>
+        RegisterShutdownClosure(hams::error::HamsError)
+        StartFailed(hams::error::HamsError)
+    }
 
-    AppConfig -->|delegates| DBConfig
-    AppConfig -->|delegates| LLMConfig
+    ConfigError --> DatabaseError : #[from] / #[error(transparent)]
+    ConfigError --> LlmError : #[from] / #[error(transparent)]
 ```
-
 
 ### 2. Async Runtime Execution (Tokio)
 **Objective:** Control the execution environment of the application deterministically via configuration.
@@ -80,8 +106,8 @@ flowchart LR
 
 ### 3. Database & Storage Layer
 **Objective:** Manage structured relational data and high-dimensional vector embeddings safely and predictably.
-- **Domain Configuration (`DatabaseConfig`):** The `db` module (`src/db.rs`) owns `DatabaseConfig` (`url`, `pool_size`, `timeout_seconds`), its `.validate()` implementation, and unit tests for database configuration validation.
-- **PostgreSQL Connection Pool:** Application state must maintain a connection pool (via `sqlx`) to PostgreSQL.
+- **Domain Configuration & Error Type (`DatabaseConfig`, `DatabaseError`):** The `db` module (`src/db.rs`) owns `DatabaseConfig` (`url`, `pool_size`, `timeout_seconds`), `DatabaseError` (`thiserror::Error`), its `.validate() -> Result<(), DatabaseError>` implementation, and unit tests for database configuration validation.
+- **PostgreSQL Connection Pool:** Application state must maintain a connection pool (via `sqlx`) to PostgreSQL (`init_db(&DatabaseConfig) -> Result<PgPool, DatabaseError>`).
 - **pgvector Integration:** The backend must support vector operations (e.g., semantic search) and must explicitly verify the existence of the `pgvector` extension during the application startup process.
 - **Automatic Migrations:** Database schema definitions are represented as `.up.sql` migration scripts. The application must run these migrations automatically and sequentially upon startup before serving traffic.
 
@@ -93,7 +119,7 @@ flowchart LR
 
 ### 5. Health Monitoring Sidecar (HaMS)
 **Objective:** Decouple application health reporting and metric telemetry from the primary business logic webservice.
-- **Sidecar Process:** The backend utilizes the external `hams` crate to run a separate sidecar listener (typically on a dedicated port like `8079`), configured via a nested `hams` block in the YAML config.
+- **Sidecar Process & Typed Errors (`HamsError`):** The backend utilizes the external `hams` crate to run a separate sidecar listener (typically on a dedicated port like `8079`), configured via a nested `hams` block in the YAML config. `HamsHarness::init` in `src/hams_tools.rs` returns a typed `Result<Self, HamsError>` derived via `thiserror::Error` rather than `Result<Self, String>`.
 - **Telemetry & Probes:** HaMS provides out-of-the-box endpoints for Kubernetes-style liveness and readiness probes, and exposes Prometheus metrics.
 - **Lifecycle Integration:** The sidecar starts immediately after configuration validation but before DB connections are made. Once both the database connection and the LLM client are verified/initialized, the system marks the HaMS ready signal to true.
 - **Graceful Shutdown:** The system integrates a `CancellationToken` that HaMS triggers on shutdown. The primary Axum server listens for this token cancellation to perform a graceful HTTP server shutdown.
@@ -101,8 +127,9 @@ flowchart LR
 ### 6. LLM Tools Integration
 **Objective:** Provide internal abstractions for connecting to, prompting, and orchestrating Large Language Models.
 - **Interfaces:** The backend must include tools (`llm_tools`) that abstract API requests to LLMs (e.g., OpenAI, Anthropic, or local models).
-- **Domain Configuration (`LlmConfig`):** The `llm_tools` module (`src/llm_tools.rs`) owns `LlmConfig` (`provider`, `base_url`, `api_key`, `model`, `timeout_seconds`), its `.validate()` implementation, and unit tests for LLM configuration validation. `AppConfig` composes `LlmConfig` and delegates validation to `self.llm.validate()?`.
-- **Fail-Fast Client Initialization:** `LlmClient::new(&config.llm)` must be initialized during startup without `.unwrap()`. Any client initialization error must be logged via `tracing::error!` and terminate startup with a non-zero exit code (`process::exit(1)`) before the HaMS readiness signal is enabled.
+- **Domain Configuration & Error Type (`LlmConfig`, `LlmError`):** The `llm_tools` module (`src/llm_tools.rs`) owns `LlmConfig` (`provider`, `base_url`, `api_key`, `model`, `timeout_seconds`), `LlmError` (`thiserror::Error`), its `.validate() -> Result<(), LlmError>` implementation, and unit tests for LLM configuration validation. `AppConfig` composes `LlmConfig` and delegates validation to `self.llm.validate()?`.
+- **Fail-Fast Client Initialization:** `LlmClient::new(&config.llm) -> Result<Self, LlmError>` must be initialized during startup without `.unwrap()`. Any client initialization error must be logged via `tracing::error!` and terminate startup with a non-zero exit code (`process::exit(1)`) before the HaMS readiness signal is enabled.
+
 
 ## Application Startup Lifecycle
 

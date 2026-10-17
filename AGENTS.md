@@ -94,3 +94,8 @@ Both dev servers have **watch/hot-reload enabled** — do **NOT** manually kill 
 - **No Hardcoded Defaults in Runtime Code**: Using fallback defaults in runtime code (e.g. `.unwrap_or(...)`, `.unwrap_or_else(...)`, or hardcoded URLs/ports/timeouts) is strictly prohibited. If a configuration value is required for operation, it must be declared in the configuration schema, populated in configuration files, and verified in `AppConfig::validate()`.
 - **Fail-Fast Validation**: Any missing, empty, or malformed configuration must fail immediately at service startup before opening database pools, binding listeners, or starting background workers.
 
+## Error Handling Standards (`thiserror`)
+
+- **No Stringly-Typed Errors (`Result<_, String>`)**: Returning `Result<_, String>` from module functions, validation methods, or initialization routines is prohibited.
+- **Modular Typed Error Enums**: Each domain module (`config`, `db`, `llm_tools`, `hams_tools`, etc.) must define its own typed error enum deriving `thiserror::Error` (e.g., `ConfigError`, `DatabaseError`, `LlmError`, `HamsError`).
+- **Transparent Delegation**: Top-level error types (such as `ConfigError`) must wrap domain errors using `#[error(transparent)]` and `#[from]` so callers can both propagate errors ergonomically with `?` and inspect specific typed variants in tests and error handlers.
