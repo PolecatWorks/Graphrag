@@ -26,6 +26,10 @@ Enable the system to answer broad, global queries by summarizing dense local gra
 - This enables high-level semantic search across broad topics, facilitating global queries.
 
 ## Testing Strategy
-- **Unit/Integration Tests:**
+- **Unit Tests:**
   - Provide a mock graph (Nodes and Edges) to the clustering algorithm and verify it correctly identifies expected communities.
   - Mock the LLM summarization response and verify that the system creates new Summary Nodes and correctly links them to the underlying community nodes.
+- **Integration Tests (`make test-robot`):**
+  - Execute a Robot Framework suite (`make test-robot`) against the running Graphrag API that triggers hierarchical community summarization over ingested `.md` nodes and verifies that Summary Nodes and their `pgvector` embeddings are queryable via the API.
+
+
