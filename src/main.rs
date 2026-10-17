@@ -55,7 +55,6 @@ async fn main() {
     let pool = match db::init_db(&config.database).await {
         Ok(p) => {
             info!("Database connection pool initialized and verified successfully.");
-            hams_harness.ready_signal.enable();
             p
         }
         Err(e) => {
@@ -68,12 +67,18 @@ async fn main() {
     let port = config.server_port;
 
     let llm_client = match crate::llm_tools::LlmClient::new(&config.llm) {
-        Ok(client) => client,
+        Ok(client) => {
+            info!("LLM client initialized successfully.");
+            client
+        }
         Err(e) => {
             error!("Failed to initialize LlmClient: {}", e);
             process::exit(1);
         }
     };
+
+    hams_harness.ready_signal.enable();
+
     let app_state = AppState {
         pool,
         config: Arc::new(config),

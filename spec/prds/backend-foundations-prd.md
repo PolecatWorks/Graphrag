@@ -95,14 +95,14 @@ flowchart LR
 **Objective:** Decouple application health reporting and metric telemetry from the primary business logic webservice.
 - **Sidecar Process:** The backend utilizes the external `hams` crate to run a separate sidecar listener (typically on a dedicated port like `8079`), configured via a nested `hams` block in the YAML config.
 - **Telemetry & Probes:** HaMS provides out-of-the-box endpoints for Kubernetes-style liveness and readiness probes, and exposes Prometheus metrics.
-- **Lifecycle Integration:** The sidecar starts immediately after configuration validation but before DB connections are made. Once the database connection is verified, the system marks the HaMS ready signal to true.
+- **Lifecycle Integration:** The sidecar starts immediately after configuration validation but before DB connections are made. Once both the database connection and the LLM client are verified/initialized, the system marks the HaMS ready signal to true.
 - **Graceful Shutdown:** The system integrates a `CancellationToken` that HaMS triggers on shutdown. The primary Axum server listens for this token cancellation to perform a graceful HTTP server shutdown.
 
 ### 6. LLM Tools Integration
 **Objective:** Provide internal abstractions for connecting to, prompting, and orchestrating Large Language Models.
 - **Interfaces:** The backend must include tools (`llm_tools`) that abstract API requests to LLMs (e.g., OpenAI, Anthropic, or local models).
 - **Domain Configuration (`LlmConfig`):** The `llm_tools` module (`src/llm_tools.rs`) owns `LlmConfig` (`provider`, `base_url`, `api_key`, `model`, `timeout_seconds`), its `.validate()` implementation, and unit tests for LLM configuration validation. `AppConfig` composes `LlmConfig` and delegates validation to `self.llm.validate()?`.
-
+- **Fail-Fast Client Initialization:** `LlmClient::new(&config.llm)` must be initialized during startup without `.unwrap()`. Any client initialization error must be logged via `tracing::error!` and terminate startup with a non-zero exit code (`process::exit(1)`) before the HaMS readiness signal is enabled.
 
 ## Application Startup Lifecycle
 
@@ -113,6 +113,7 @@ sequenceDiagram
     participant Tokio as Tokio Runtime
     participant HaMS as HaMS Sidecar
     participant DB as Postgres (sqlx)
+    participant LLM as LLM Client
     participant Axum as Axum Webservice
 
     Main->>Config: Request Application Config
@@ -121,16 +122,20 @@ sequenceDiagram
     Tokio-->>Main: Runtime Active
     Main->>Main: Initialize Telemetry & Logging
     Main->>HaMS: Start Health Sidecar (Port 8079)
-    HaMS-->>Main: HaMS Ready
+    HaMS-->>Main: HaMS Liveness Active (Ready = false)
     Main->>DB: Initialize DB Connection Pool
     DB-->>Main: Pool Established
     Main->>DB: Verify pgvector Extension
     Main->>DB: Run Pending Schema Migrations (.up.sql)
     DB-->>Main: Migrations Complete
-    Main->>Axum: Bind Router and Inject AppState (Config, Pool)
+    Main->>LLM: Initialize LlmClient (Fail-fast if error)
+    LLM-->>Main: LlmClient Initialized
+    Main->>HaMS: Enable Ready Signal (ready_signal.enable())
+    Main->>Axum: Bind Router and Inject AppState (Config, Pool, LlmClient)
     Axum-->>Main: Listening on HTTP (Port 8080)
     Note over Main, Axum: Application Ready & Serving Traffic
 ```
 
 ## Related Standards
 For development conventions, PR branch guidelines, and server watch mechanics, please refer to the `AGENTS.md` guidelines at the repository root.
+
