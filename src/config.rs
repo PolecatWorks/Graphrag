@@ -1,37 +1,11 @@
 use crate::db::DatabaseConfig;
+use crate::llm_tools::LlmConfig;
 use figment::{
     Figment,
     providers::{Env, Format, Yaml},
 };
 use hams::hams::config::HamsConfig;
 use serde::Deserialize;
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct LlmConfig {
-    pub provider: String,
-    pub base_url: String,
-    pub api_key: Option<String>,
-    pub model: String,
-    pub timeout_seconds: u64,
-}
-
-impl LlmConfig {
-    pub fn validate(&self) -> Result<(), String> {
-        if self.provider.trim().is_empty() {
-            return Err("llm.provider must not be empty".to_string());
-        }
-        if self.base_url.trim().is_empty() {
-            return Err("llm.base_url must not be empty".to_string());
-        }
-        if self.model.trim().is_empty() {
-            return Err("llm.model must not be empty".to_string());
-        }
-        if self.timeout_seconds == 0 {
-            return Err("llm.timeout_seconds must be greater than 0".to_string());
-        }
-        Ok(())
-    }
-}
 
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
@@ -72,7 +46,6 @@ impl AppConfig {
 mod tests {
     use super::*;
     use hams::hams::config::HamsConfig;
-    use rstest::rstest;
     use std::env;
     use std::io::Write;
     use std::sync::Mutex;
@@ -87,6 +60,26 @@ mod tests {
             env::remove_var("GRAPHRAG_BE__DATABASE__TIMEOUT_SECONDS");
             env::remove_var("GRAPHRAG_BE__SERVER_PORT");
             env::remove_var("GRAPHRAG_BE__HAMS__PORT");
+        }
+    }
+
+    fn valid_app_config() -> AppConfig {
+        AppConfig {
+            database: DatabaseConfig {
+                url: "postgres://test".to_string(),
+                pool_size: 10,
+                timeout_seconds: 30,
+            },
+            server_host: "127.0.0.1".to_string(),
+            server_port: 8080,
+            hams: HamsConfig::default(),
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "http://localhost:11434/v1".to_string(),
+                api_key: None,
+                model: "llama3".to_string(),
+                timeout_seconds: 60,
+            },
         }
     }
 
@@ -140,167 +133,36 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_empty_database_url() {
-        let config = AppConfig {
-            database: DatabaseConfig {
-                url: "   ".to_string(),
-                pool_size: 10,
-                timeout_seconds: 30,
-            },
-            server_host: "127.0.0.1".to_string(),
-            server_port: 8080,
-            hams: HamsConfig::default(),
-            llm: LlmConfig {
-                provider: "ollama".to_string(),
-                base_url: "http://localhost:11434/v1".to_string(),
-                api_key: None,
-                model: "llama3".to_string(),
-                timeout_seconds: 60,
-            },
-        };
-        assert!(config.validate().is_err());
-    }
-
-    #[test]
     fn test_validate_zero_server_port() {
-        let config = AppConfig {
-            database: DatabaseConfig {
-                url: "postgres://test".to_string(),
-                pool_size: 10,
-                timeout_seconds: 30,
-            },
-            server_host: "127.0.0.1".to_string(),
-            server_port: 0,
-            hams: HamsConfig::default(),
-            llm: LlmConfig {
-                provider: "ollama".to_string(),
-                base_url: "http://localhost:11434/v1".to_string(),
-                api_key: None,
-                model: "llama3".to_string(),
-                timeout_seconds: 60,
-            },
-        };
-        assert!(config.validate().is_err());
-    }
-
-    #[test]
-    fn test_validate_zero_pool_size() {
-        let config = AppConfig {
-            database: DatabaseConfig {
-                url: "postgres://test".to_string(),
-                pool_size: 0,
-                timeout_seconds: 30,
-            },
-            server_host: "127.0.0.1".to_string(),
-            server_port: 8080,
-            hams: HamsConfig::default(),
-            llm: LlmConfig {
-                provider: "ollama".to_string(),
-                base_url: "http://localhost:11434/v1".to_string(),
-                api_key: None,
-                model: "llama3".to_string(),
-                timeout_seconds: 60,
-            },
-        };
-        assert!(config.validate().is_err());
-    }
-
-    #[test]
-    fn test_validate_zero_timeout() {
-        let config = AppConfig {
-            database: DatabaseConfig {
-                url: "postgres://test".to_string(),
-                pool_size: 10,
-                timeout_seconds: 0,
-            },
-            server_host: "127.0.0.1".to_string(),
-            server_port: 8080,
-            hams: HamsConfig::default(),
-            llm: LlmConfig {
-                provider: "ollama".to_string(),
-                base_url: "http://localhost:11434/v1".to_string(),
-                api_key: None,
-                model: "llama3".to_string(),
-                timeout_seconds: 60,
-            },
-        };
-        assert!(config.validate().is_err());
-    }
-
-    fn valid_llm_config() -> LlmConfig {
-        LlmConfig {
-            provider: "ollama".to_string(),
-            base_url: "http://localhost:11434/v1".to_string(),
-            api_key: Some("test-key".to_string()),
-            model: "llama3".to_string(),
-            timeout_seconds: 60,
-        }
-    }
-
-    #[test]
-    fn test_llm_config_validate_success() {
-        let config = valid_llm_config();
-        assert_eq!(config.validate(), Ok(()));
-    }
-
-    #[rstest]
-    #[case("")]
-    #[case(" ")]
-    #[case("  ")]
-    #[case("\t")]
-    #[case("\n")]
-    #[case(" \t\n ")]
-    fn test_llm_config_validate_empty_provider(#[case] provider: &str) {
-        let mut config = valid_llm_config();
-        config.provider = provider.to_string();
-
-        let result = config.validate();
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "llm.provider must not be empty");
-    }
-
-    #[rstest]
-    #[case("")]
-    #[case(" ")]
-    #[case("  ")]
-    #[case("\t")]
-    #[case("\n")]
-    #[case(" \t\n ")]
-    fn test_llm_config_validate_empty_base_url(#[case] base_url: &str) {
-        let mut config = valid_llm_config();
-        config.base_url = base_url.to_string();
-
-        let result = config.validate();
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "llm.base_url must not be empty");
-    }
-
-    #[rstest]
-    #[case("")]
-    #[case(" ")]
-    #[case("  ")]
-    #[case("\t")]
-    #[case("\n")]
-    #[case(" \t\n ")]
-    fn test_llm_config_validate_empty_model(#[case] model: &str) {
-        let mut config = valid_llm_config();
-        config.model = model.to_string();
-
-        let result = config.validate();
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "llm.model must not be empty");
-    }
-
-    #[test]
-    fn test_llm_config_validate_zero_timeout() {
-        let mut config = valid_llm_config();
-        config.timeout_seconds = 0;
+        let mut config = valid_app_config();
+        config.server_port = 0;
 
         let result = config.validate();
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
-            "llm.timeout_seconds must be greater than 0"
+            "server_port must be a valid port number"
         );
     }
+
+    #[test]
+    fn test_validate_delegates_to_database_config() {
+        let mut config = valid_app_config();
+        config.database.url = "   ".to_string();
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "database.url must not be empty");
+    }
+
+    #[test]
+    fn test_validate_delegates_to_llm_config() {
+        let mut config = valid_app_config();
+        config.llm.provider = "   ".to_string();
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "llm.provider must not be empty");
+    }
 }
+

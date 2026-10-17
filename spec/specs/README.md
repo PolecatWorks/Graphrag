@@ -20,3 +20,5 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [08. Graph RAG - Storage & Graph Construction](./08-graph-rag-storage-spec.md) - `draft`
 *   [09. Graph RAG - Hierarchical Summarization](./09-graph-rag-hierarchical-spec.md) - `draft`
 *   [10. Graph RAG - Baseline Evaluation & Benchmarking](./10-graph-rag-evaluation-spec.md) - `draft`
+*   [11. Modular Configuration Ownership & Delegated Validation](./11-modular-config-validation-spec.md) - `complete`
+

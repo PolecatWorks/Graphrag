@@ -14,6 +14,7 @@ mod tests {
     use super::*;
     use crate::config::AppConfig;
     use crate::db::DatabaseConfig;
+    use crate::llm_tools::LlmConfig;
     use axum::{
         body::Body,
         http::{Request, StatusCode},
@@ -37,7 +38,7 @@ mod tests {
             server_host: "127.0.0.1".to_string(),
             server_port: 8080,
             hams: hams::hams::config::HamsConfig::default(),
-            llm: crate::config::LlmConfig {
+            llm: LlmConfig {
                 provider: "ollama".to_string(),
                 base_url: "http://localhost:11434/v1".to_string(),
                 api_key: None,
