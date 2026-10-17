@@ -1,5 +1,20 @@
 use rig_core::providers::openai::Client;
 use serde::Deserialize;
+use thiserror::Error;
+
+#[derive(Debug, Error, PartialEq)]
+pub enum LlmError {
+    #[error("llm.provider must not be empty")]
+    EmptyProvider,
+    #[error("llm.base_url must not be empty")]
+    EmptyBaseUrl,
+    #[error("llm.model must not be empty")]
+    EmptyModel,
+    #[error("llm.timeout_seconds must be greater than 0")]
+    ZeroTimeout,
+    #[error("{0}")]
+    ClientInit(String),
+}
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct LlmConfig {
@@ -11,18 +26,18 @@ pub struct LlmConfig {
 }
 
 impl LlmConfig {
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), LlmError> {
         if self.provider.trim().is_empty() {
-            return Err("llm.provider must not be empty".to_string());
+            return Err(LlmError::EmptyProvider);
         }
         if self.base_url.trim().is_empty() {
-            return Err("llm.base_url must not be empty".to_string());
+            return Err(LlmError::EmptyBaseUrl);
         }
         if self.model.trim().is_empty() {
-            return Err("llm.model must not be empty".to_string());
+            return Err(LlmError::EmptyModel);
         }
         if self.timeout_seconds == 0 {
-            return Err("llm.timeout_seconds must be greater than 0".to_string());
+            return Err(LlmError::ZeroTimeout);
         }
         Ok(())
     }
@@ -35,7 +50,7 @@ pub struct LlmClient {
 }
 
 impl LlmClient {
-    pub fn new(config: &LlmConfig) -> Result<Self, String> {
+    pub fn new(config: &LlmConfig) -> Result<Self, LlmError> {
         let api_key = config.api_key.as_deref().unwrap_or("sk-no-key-required");
         let mut client_builder = rig_core::providers::openai::Client::builder().api_key(api_key);
 
@@ -44,7 +59,9 @@ impl LlmClient {
             client_builder = client_builder.base_url(url);
         }
 
-        let rig_client = client_builder.build().map_err(|e| e.to_string())?;
+        let rig_client = client_builder
+            .build()
+            .map_err(|e| LlmError::ClientInit(e.to_string()))?;
 
         Ok(Self {
             client: rig_client,
@@ -97,8 +114,11 @@ mod tests {
         config.provider = provider.to_string();
 
         let result = config.validate();
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "llm.provider must not be empty");
+        assert_eq!(result, Err(LlmError::EmptyProvider));
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "llm.provider must not be empty"
+        );
     }
 
     #[rstest]
@@ -113,8 +133,11 @@ mod tests {
         config.base_url = base_url.to_string();
 
         let result = config.validate();
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "llm.base_url must not be empty");
+        assert_eq!(result, Err(LlmError::EmptyBaseUrl));
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "llm.base_url must not be empty"
+        );
     }
 
     #[rstest]
@@ -129,8 +152,11 @@ mod tests {
         config.model = model.to_string();
 
         let result = config.validate();
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "llm.model must not be empty");
+        assert_eq!(result, Err(LlmError::EmptyModel));
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "llm.model must not be empty"
+        );
     }
 
     #[test]
@@ -139,11 +165,12 @@ mod tests {
         config.timeout_seconds = 0;
 
         let result = config.validate();
-        assert!(result.is_err());
+        assert_eq!(result, Err(LlmError::ZeroTimeout));
         assert_eq!(
-            result.unwrap_err(),
+            result.unwrap_err().to_string(),
             "llm.timeout_seconds must be greater than 0"
         );
     }
 }
+
 
