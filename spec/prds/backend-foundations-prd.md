@@ -48,10 +48,22 @@ flowchart TD
 
 ### 1. Configuration Loading
 **Objective:** Guarantee that the application operates only with valid, well-formed configuration, failing immediately upon startup if any properties are missing or invalid.
-- **Centralized Loader:** All application configuration must be loaded into strongly typed structs at startup (e.g., via `config` crate).
+- **Centralized Loader:** All application configuration must be loaded into strongly typed structs at startup (e.g., via `config` or `figment` crate).
+- **Modular Config Ownership & Delegated Validation:** Each domain module (`db`, `llm_tools`, etc.) defines and owns its specific configuration struct (`DatabaseConfig`, `LlmConfig`), implements its own `.validate()` method, and maintains unit tests covering its field-level validation rules. The central `AppConfig` composes these domain structs, validates top-level server properties, and delegates domain validation to each subsystem (`self.database.validate()?`, `self.llm.validate()?`), with tests in `config` verifying top-level loading and validation delegation.
 - **Fail-Fast Validation:** The system must validate the configuration scheme before establishing database connections or binding network listeners.
 - **Zero Direct Runtime Environment Variables:** Accessing environment variables directly in business logic (e.g., `std::env::var`) is strictly prohibited. All environment variables must be loaded and merged into the central `AppConfig` at startup.
 - **No Hardcoded Defaults in Logic:** Hardcoded fallback values in handlers or execution paths are not allowed.
+
+```mermaid
+flowchart LR
+    AppConfig["AppConfig::validate()\n(src/config.rs)"]
+    DBConfig["DatabaseConfig::validate()\n(src/db.rs)"]
+    LLMConfig["LlmConfig::validate()\n(src/llm_tools.rs)"]
+
+    AppConfig -->|delegates| DBConfig
+    AppConfig -->|delegates| LLMConfig
+```
+
 
 ### 2. Async Runtime Execution (Tokio)
 **Objective:** Control the execution environment of the application deterministically via configuration.
@@ -68,6 +80,7 @@ flowchart TD
 
 ### 3. Database & Storage Layer
 **Objective:** Manage structured relational data and high-dimensional vector embeddings safely and predictably.
+- **Domain Configuration (`DatabaseConfig`):** The `db` module (`src/db.rs`) owns `DatabaseConfig` (`url`, `pool_size`, `timeout_seconds`), its `.validate()` implementation, and unit tests for database configuration validation.
 - **PostgreSQL Connection Pool:** Application state must maintain a connection pool (via `sqlx`) to PostgreSQL.
 - **pgvector Integration:** The backend must support vector operations (e.g., semantic search) and must explicitly verify the existence of the `pgvector` extension during the application startup process.
 - **Automatic Migrations:** Database schema definitions are represented as `.up.sql` migration scripts. The application must run these migrations automatically and sequentially upon startup before serving traffic.
@@ -88,7 +101,8 @@ flowchart TD
 ### 6. LLM Tools Integration
 **Objective:** Provide internal abstractions for connecting to, prompting, and orchestrating Large Language Models.
 - **Interfaces:** The backend must include tools (`llm_tools`) that abstract API requests to LLMs (e.g., OpenAI, Anthropic, or local models).
-- **Configurable Endpoints:** LLM configuration (endpoints, keys, model names, timeout settings) must be strictly managed through the centralized config loader.
+- **Domain Configuration (`LlmConfig`):** The `llm_tools` module (`src/llm_tools.rs`) owns `LlmConfig` (`provider`, `base_url`, `api_key`, `model`, `timeout_seconds`), its `.validate()` implementation, and unit tests for LLM configuration validation. `AppConfig` composes `LlmConfig` and delegates validation to `self.llm.validate()?`.
+
 
 ## Application Startup Lifecycle
 
