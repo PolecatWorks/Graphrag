@@ -6,6 +6,17 @@ use figment::{
 };
 use hams::hams::config::HamsConfig;
 use serde::Deserialize;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("server_port must be a valid port number")]
+    ZeroServerPort,
+    #[error(transparent)]
+    Database(#[from] crate::db::DatabaseError),
+    #[error(transparent)]
+    Llm(#[from] crate::llm_tools::LlmError),
+}
 
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
@@ -31,12 +42,12 @@ impl AppConfig {
         figment.extract()
     }
 
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), ConfigError> {
         self.database.validate()?;
         self.llm.validate()?;
 
         if self.server_port == 0 {
-            return Err("server_port must be a valid port number".to_string());
+            return Err(ConfigError::ZeroServerPort);
         }
         Ok(())
     }
@@ -138,9 +149,9 @@ mod tests {
         config.server_port = 0;
 
         let result = config.validate();
-        assert!(result.is_err());
+        assert!(matches!(result, Err(ConfigError::ZeroServerPort)));
         assert_eq!(
-            result.unwrap_err(),
+            result.unwrap_err().to_string(),
             "server_port must be a valid port number"
         );
     }
@@ -151,8 +162,14 @@ mod tests {
         config.database.url = "   ".to_string();
 
         let result = config.validate();
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "database.url must not be empty");
+        assert!(matches!(
+            result,
+            Err(ConfigError::Database(crate::db::DatabaseError::EmptyUrl))
+        ));
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "database.url must not be empty"
+        );
     }
 
     #[test]
@@ -161,8 +178,15 @@ mod tests {
         config.llm.provider = "   ".to_string();
 
         let result = config.validate();
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "llm.provider must not be empty");
+        assert!(matches!(
+            result,
+            Err(ConfigError::Llm(crate::llm_tools::LlmError::EmptyProvider))
+        ));
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "llm.provider must not be empty"
+        );
     }
 }
+
 
