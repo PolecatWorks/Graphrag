@@ -22,5 +22,8 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [10. Graph RAG - Baseline Evaluation & Benchmarking](./10-graph-rag-evaluation-spec.md) - `draft`
 *   [11. Modular Configuration Ownership & Delegated Validation](./11-modular-config-validation-spec.md) - `complete`
 *   [12. Typed Error Handling (`thiserror`)](./12-typed-error-handling-spec.md) - `complete`
+*   [13. CLI Argument Parsing (`clap` Derive)](./13-cli-clap-derive-spec.md) - `complete`
+*   [14. Robot Framework & Ragas Integration Test Harness (`make test-robot`)](./14-robot-ragas-integration-harness-spec.md) - `complete`
+
 
 
