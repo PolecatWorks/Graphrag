@@ -21,7 +21,7 @@ class TestGraphragApiLibrary(unittest.TestCase):
         mock_get.return_value = mock_resp
 
         self.lib.verify_hams_liveness()
-        mock_get.assert_called_once_with("http://localhost:8079/health/live", timeout=10)
+        mock_get.assert_called_once_with("http://localhost:8079/hams/alive", timeout=10)
 
     @patch("GraphragApiLibrary.requests.get")
     def test_verify_hams_readiness_failure(self, mock_get):

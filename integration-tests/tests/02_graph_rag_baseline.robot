@@ -9,7 +9,7 @@ Suite Teardown    Cleanup Ingested Documents
 ${BE_BASE_URL}          http://localhost:8080
 ${HAMS_BE_URL}          http://localhost:8079
 ${LLM_BASE_URL}         http://localhost:11434/v1
-${LLM_MODEL}            llama3
+${LLM_MODEL}            llama3.1:8b
 ${BASELINE_DATA_DIR}    ${CURDIR}/../../tests/data/graph_rag_baseline
 
 *** Test Cases ***

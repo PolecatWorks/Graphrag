@@ -1,4 +1,5 @@
 -- Graph RAG storage schema for documents, knowledge objects (pgvector), and graph tuples
+CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS graph_documents (
     id VARCHAR(255) PRIMARY KEY,
     filename VARCHAR(255) NOT NULL,

@@ -10,7 +10,7 @@ This directory contains the detailed technical specifications and Test-Driven De
 
 ## Index of Specifications
 
-*   [01. Developer Tooling (Makefile)](./01-developer-tooling-spec.md) - `complete`
+*   [01. Developer Tooling (Makefile)](./01-developer-tooling-spec.md) - `deprecated` (Superseded by Spec 15)
 *   [02. Configuration Loader](./02-config-loader-spec.md) - `complete`
 *   [03. Database & Storage Layer](./03-database-layer-spec.md) - `complete`
 *   [04. Axum Web Service](./04-axum-service-spec.md) - `complete`
@@ -24,6 +24,7 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [12. Typed Error Handling (`thiserror`)](./12-typed-error-handling-spec.md) - `complete`
 *   [13. CLI Argument Parsing (`clap` Derive)](./13-cli-clap-derive-spec.md) - `complete`
 *   [14. Robot Framework & Ragas Integration Test Harness (`make test-robot`)](./14-robot-ragas-integration-harness-spec.md) - `complete`
+*   [15. Developer Tooling Configuration & Clap Arguments (Makefile)](./15-makefile-clap-config-spec.md) - `complete`
 
 
 
