@@ -2,7 +2,7 @@ use rig_core::providers::openai::Client;
 use serde::Deserialize;
 use thiserror::Error;
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error)]
 pub enum LlmError {
     #[error("llm.provider must not be empty")]
     EmptyProvider,
@@ -12,8 +12,8 @@ pub enum LlmError {
     EmptyModel,
     #[error("llm.timeout_seconds must be greater than 0")]
     ZeroTimeout,
-    #[error("{0}")]
-    ClientInit(String),
+    #[error(transparent)]
+    ClientInit(#[from] rig_core::http_client::Error),
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -59,9 +59,7 @@ impl LlmClient {
             client_builder = client_builder.base_url(url);
         }
 
-        let rig_client = client_builder
-            .build()
-            .map_err(|e| LlmError::ClientInit(e.to_string()))?;
+        let rig_client = client_builder.build()?;
 
         Ok(Self {
             client: rig_client,
@@ -99,7 +97,7 @@ mod tests {
     #[test]
     fn test_llm_config_validate_success() {
         let config = valid_llm_config();
-        assert_eq!(config.validate(), Ok(()));
+        assert!(config.validate().is_ok());
     }
 
     #[rstest]
@@ -114,7 +112,7 @@ mod tests {
         config.provider = provider.to_string();
 
         let result = config.validate();
-        assert_eq!(result, Err(LlmError::EmptyProvider));
+        assert!(matches!(result, Err(LlmError::EmptyProvider)));
         assert_eq!(
             result.unwrap_err().to_string(),
             "llm.provider must not be empty"
@@ -133,7 +131,7 @@ mod tests {
         config.base_url = base_url.to_string();
 
         let result = config.validate();
-        assert_eq!(result, Err(LlmError::EmptyBaseUrl));
+        assert!(matches!(result, Err(LlmError::EmptyBaseUrl)));
         assert_eq!(
             result.unwrap_err().to_string(),
             "llm.base_url must not be empty"
@@ -152,7 +150,7 @@ mod tests {
         config.model = model.to_string();
 
         let result = config.validate();
-        assert_eq!(result, Err(LlmError::EmptyModel));
+        assert!(matches!(result, Err(LlmError::EmptyModel)));
         assert_eq!(
             result.unwrap_err().to_string(),
             "llm.model must not be empty"
@@ -165,12 +163,13 @@ mod tests {
         config.timeout_seconds = 0;
 
         let result = config.validate();
-        assert_eq!(result, Err(LlmError::ZeroTimeout));
+        assert!(matches!(result, Err(LlmError::ZeroTimeout)));
         assert_eq!(
             result.unwrap_err().to_string(),
             "llm.timeout_seconds must be greater than 0"
         );
     }
 }
+
 
 
