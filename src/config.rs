@@ -5,6 +5,23 @@ use figment::{
 };
 use hams::hams::config::HamsConfig;
 use serde::Deserialize;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("llm.provider must not be empty")]
+    EmptyLlmProvider,
+    #[error("llm.base_url must not be empty")]
+    EmptyLlmBaseUrl,
+    #[error("llm.model must not be empty")]
+    EmptyLlmModel,
+    #[error("llm.timeout_seconds must be greater than 0")]
+    ZeroLlmTimeout,
+    #[error("server_port must be a valid port number")]
+    ZeroServerPort,
+    #[error(transparent)]
+    Database(#[from] crate::db::DatabaseError),
+}
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct LlmConfig {
@@ -16,18 +33,18 @@ pub struct LlmConfig {
 }
 
 impl LlmConfig {
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), ConfigError> {
         if self.provider.trim().is_empty() {
-            return Err("llm.provider must not be empty".to_string());
+            return Err(ConfigError::EmptyLlmProvider);
         }
         if self.base_url.trim().is_empty() {
-            return Err("llm.base_url must not be empty".to_string());
+            return Err(ConfigError::EmptyLlmBaseUrl);
         }
         if self.model.trim().is_empty() {
-            return Err("llm.model must not be empty".to_string());
+            return Err(ConfigError::EmptyLlmModel);
         }
         if self.timeout_seconds == 0 {
-            return Err("llm.timeout_seconds must be greater than 0".to_string());
+            return Err(ConfigError::ZeroLlmTimeout);
         }
         Ok(())
     }
@@ -57,12 +74,12 @@ impl AppConfig {
         figment.extract()
     }
 
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), ConfigError> {
         self.database.validate()?;
         self.llm.validate()?;
 
         if self.server_port == 0 {
-            return Err("server_port must be a valid port number".to_string());
+            return Err(ConfigError::ZeroServerPort);
         }
         Ok(())
     }
