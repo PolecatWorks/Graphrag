@@ -1,4 +1,4 @@
-.PHONY: kill-ports dev watch aad-be-watch migrate test
+.PHONY: kill-ports dev watch aad-be-watch migrate test test-robot
 
 # Helper target to cleanly kill any existing process running on the backend ports
 kill-ports:
@@ -25,10 +25,11 @@ migrate:
 	sqlx database create
 	sqlx migrate run
 
-# Runs all unit and integration tests
+# Runs all unit tests
 test:
 	cargo test -- --test-threads=1
-	@if [ -f integration-tests/run-tests-local.sh ]; then \
-		echo "Running integration tests script..."; \
-		./integration-tests/run-tests-local.sh; \
-	fi
+
+# Runs Robot Framework + Ragas integration tests against the already-running Graphrag service
+test-robot:
+	./integration-tests/run-tests-local.sh
+
