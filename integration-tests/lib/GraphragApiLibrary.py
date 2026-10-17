@@ -20,8 +20,8 @@ class GraphragApiLibrary:
         self.ingested_document_ids: List[str] = []
 
     def verify_hams_liveness(self) -> None:
-        """Verifies that the HaMS /health/live endpoint returns HTTP 200."""
-        url = f"{self.hams_base_url}/health/live"
+        """Verifies that the HaMS /hams/alive endpoint returns HTTP 200."""
+        url = f"{self.hams_base_url}/hams/alive"
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
             raise AssertionError(
@@ -29,8 +29,8 @@ class GraphragApiLibrary:
             )
 
     def verify_hams_readiness(self) -> None:
-        """Verifies that the HaMS /health/ready endpoint returns HTTP 200."""
-        url = f"{self.hams_base_url}/health/ready"
+        """Verifies that the HaMS /hams/ready endpoint returns HTTP 200."""
+        url = f"{self.hams_base_url}/hams/ready"
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
             raise AssertionError(
@@ -38,8 +38,8 @@ class GraphragApiLibrary:
             )
 
     def verify_hams_metrics(self) -> str:
-        """Verifies that the HaMS /metrics endpoint returns non-empty Prometheus metrics."""
-        url = f"{self.hams_base_url}/metrics"
+        """Verifies that the HaMS /hams/metrics endpoint returns non-empty Prometheus metrics."""
+        url = f"{self.hams_base_url}/hams/metrics"
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200 or not resp.text.strip():
             raise AssertionError(

@@ -12,7 +12,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LOCAL_BE_URL="${LOCAL_BE_URL:-http://localhost:8080}"
 LOCAL_HAMS_BE_URL="${LOCAL_HAMS_BE_URL:-http://localhost:8079}"
 LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:11434/v1}"
-LLM_MODEL="${LLM_MODEL:-llama3}"
+LLM_MODEL="${LLM_MODEL:-llama3.1:8b}"
 BASELINE_DATA_DIR="${BASELINE_DATA_DIR:-${REPO_ROOT}/tests/data/graph_rag_baseline}"
 
 REPORT_DIR="${SCRIPT_DIR}/reports"
@@ -53,18 +53,18 @@ echo "=============================================="
 echo ""
 echo "Running pre-flight checks against running Graphrag instance..."
 
-if curl -sf "${LOCAL_HAMS_BE_URL}/health/live" > /dev/null 2>&1; then
-    echo "  ✓ HaMS liveness is responding at ${LOCAL_HAMS_BE_URL}/health/live"
+if curl -sf "${LOCAL_HAMS_BE_URL}/hams/alive" > /dev/null 2>&1; then
+    echo "  ✓ HaMS liveness is responding at ${LOCAL_HAMS_BE_URL}/hams/alive"
 else
-    echo "  ✗ Error: Graphrag HaMS sidecar is NOT responding at ${LOCAL_HAMS_BE_URL}/health/live."
+    echo "  ✗ Error: Graphrag HaMS sidecar is NOT responding at ${LOCAL_HAMS_BE_URL}/hams/alive."
     echo "    Please ensure Graphrag is running before invoking 'make test-robot'."
     exit 1
 fi
 
-if curl -sf "${LOCAL_HAMS_BE_URL}/health/ready" > /dev/null 2>&1; then
-    echo "  ✓ HaMS readiness is responding at ${LOCAL_HAMS_BE_URL}/health/ready"
+if curl -sf "${LOCAL_HAMS_BE_URL}/hams/ready" > /dev/null 2>&1; then
+    echo "  ✓ HaMS readiness is responding at ${LOCAL_HAMS_BE_URL}/hams/ready"
 else
-    echo "  ✗ Error: Graphrag HaMS readiness check failed at ${LOCAL_HAMS_BE_URL}/health/ready."
+    echo "  ✗ Error: Graphrag HaMS readiness check failed at ${LOCAL_HAMS_BE_URL}/hams/ready."
     exit 1
 fi
 

@@ -44,7 +44,13 @@ flowchart TD
 ### 0. Developer Tooling (Make)
 **Objective:** Provide ergonomic syntactic sugar for common development actions.
 - A root-level `Makefile` exposes targets to simplify the build, test, and run cycles.
-- Targets should include: `make dev` (start server with port cleanup), `make watch` (hot-reloading via cargo watch), `make migrate`, `make test` (unit tests), and `make test-robot` (execute Robot Framework integration tests via `./integration-tests/run-tests-local.sh` against the already-running Graphrag service).
+- Targets should include:
+  - `make dev`: Starts server with port cleanup, passing configuration file path via the clap argument (`-c $(CONFIG_FILE)`).
+  - `make watch` / `make aad-be-watch`: Starts server with hot-reloading via cargo watch, passing the configuration file path via the clap argument (`cargo watch -x "run -- -c $(CONFIG_FILE)"`).
+  - `make migrate`: Runs database migrations via `sqlx database create` and `sqlx migrate run` using `$(DATABASE_URL)`.
+  - `make test`: Runs unit tests with `--test-threads=1`.
+  - `make test-robot`: Executes Robot Framework integration tests via `./integration-tests/run-tests-local.sh` against the already-running Graphrag service.
+- A default `config.yaml` file is provided at repository root for local development.
 
 ### 1. Configuration Loading & Typed Error Hierarchy
 **Objective:** Guarantee that the application operates only with valid, well-formed configuration and structured, inspectable error types, failing immediately upon startup if any properties are missing or invalid.

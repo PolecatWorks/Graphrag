@@ -1,5 +1,8 @@
 .PHONY: kill-ports dev watch aad-be-watch migrate test test-robot
 
+CONFIG_FILE ?= config.yaml
+DATABASE_URL ?= postgres://postgres:mysecretpassword@localhost:5432/graphrag
+
 # Helper target to cleanly kill any existing process running on the backend ports
 kill-ports:
 	@echo "Killing processes on ports 8080 and 8079..."
@@ -8,11 +11,11 @@ kill-ports:
 
 # Starts the backend server in a standard development mode
 dev: kill-ports
-	cargo run
+	cargo run -- -c $(CONFIG_FILE)
 
 # Starts the backend server with hot-reloading enabled via cargo watch
 watch:
-	cargo watch -x run
+	cargo watch -x "run -- -c $(CONFIG_FILE)"
 
 aad-be-watch: watch
 
@@ -22,8 +25,8 @@ migrate:
 		echo "sqlx could not be found, installing..."; \
 		cargo install sqlx-cli --no-default-features --features rustls,postgres; \
 	fi
-	sqlx database create
-	sqlx migrate run
+	sqlx database create --database-url $(DATABASE_URL)
+	sqlx migrate run --database-url $(DATABASE_URL)
 
 # Runs all unit tests
 test:
@@ -32,4 +35,3 @@ test:
 # Runs Robot Framework + Ragas integration tests against the already-running Graphrag service
 test-robot:
 	./integration-tests/run-tests-local.sh
-

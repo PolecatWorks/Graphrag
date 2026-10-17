@@ -1,6 +1,6 @@
 # Spec 01: Developer Tooling (Makefile)
 
-**Status:** `complete`
+**Status:** `deprecated` (Superseded by [Spec 15: Developer Tooling Configuration & Clap Arguments](./15-makefile-clap-config-spec.md))
 **Derived From:** [Backend Foundations PRD](../prds/backend-foundations-prd.md)
 
 ## Objective
