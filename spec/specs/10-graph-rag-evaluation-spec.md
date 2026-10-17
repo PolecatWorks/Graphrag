@@ -1,6 +1,6 @@
 # Spec 10: Graph RAG - Baseline Evaluation & Benchmarking
 
-**Status:** `draft`
+**Status:** `complete`
 **Derived From:** [Graph RAG PRD](../prds/graph-rag-prd.md)
 
 ## Objective

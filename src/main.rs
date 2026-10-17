@@ -1,11 +1,13 @@
 mod cli;
 mod config;
 mod db;
+pub mod graph_rag;
 pub mod hams_tools;
 mod llm_tools;
 mod routes;
 mod state;
 
+use crate::graph_rag::GraphStore;
 use crate::hams_tools::HamsHarness;
 use clap::Parser;
 use cli::Cli;
@@ -83,6 +85,7 @@ async fn main() {
         pool,
         config: Arc::new(config),
         llm: Arc::new(llm_client),
+        graph_store: GraphStore::default(),
     };
 
     let app = routes::create_router().with_state(app_state);

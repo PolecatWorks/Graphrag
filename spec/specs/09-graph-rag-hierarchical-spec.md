@@ -1,35 +1,43 @@
 # Spec 09: Graph RAG - Hierarchical Summarization
 
-**Status:** `draft`
+**Status:** `complete`
 **Derived From:** [Graph RAG PRD](../prds/graph-rag-prd.md)
 
 ## Objective
-Enable the system to answer broad, global queries by summarizing dense local graphs into hierarchical community structures.
+Enable the system to answer broad, global queries by clustering Layer 0 Knowledge Objects into communities and generating Layer 1+ Summary Nodes with `pgvector` embeddings.
+
+## Architecture & Flow
+
+```mermaid
+flowchart LR
+    Layer0["Layer 0 Graph\n(Knowledge Objects & Tuples)"] --> Clustering["Community Detection\n(Connected Components / Label Propagation)"]
+    Clustering --> Communities["Identified Communities"]
+    Communities --> Summarizer["LLM Community Summarizer"]
+    Summarizer --> Layer1["Layer 1 Summary Nodes\n(label='CommunitySummary', layer=1)"]
+    Layer1 --> HierarchyEdges["Hierarchy Tuples\n(community_X -[SUMMARIZES]-> member_node)"]
+```
 
 ## Requirements
 
 ### 1. Graph Clustering (Communities)
-- The system must implement or integrate an external library for community detection algorithms (e.g., Leiden or Louvain).
-- The algorithm must process the base graph (Layer 0) and group heavily interconnected Knowledge Objects into clusters known as Communities.
+- Implement deterministic graph community detection (Label Propagation / Connected Community Clustering weighted by shared neighborhoods) over Layer 0 `KnowledgeObject` nodes and `GraphTuple` edges.
+- Group interconnected Layer 0 Knowledge Objects into distinct communities with deterministic community identifiers (`community_1`, `community_2`, etc.).
 
 ### 2. Hierarchical Summarization
 - **Layering System:**
-  - **Layer 0:** Represents the base layer of extracted Knowledge Objects and Tuples.
-  - **Layer 1..N:** Represents hierarchical layers of community summaries.
+  - **Layer 0:** Base layer of extracted Knowledge Objects (`layer = 0`).
+  - **Layer 1:** Community Summary Nodes (`layer = 1`, `label = "CommunitySummary"`).
 - **LLM Summarization:**
-  - For each identified community, the system must prompt an LLM to generate a comprehensive summary based on its constituent nodes and edges.
-  - These generated summaries must be inserted as new "Summary Nodes" into the graph.
-  - Summary Nodes must be hierarchically linked (via edges) to the lower-level nodes they summarize.
+  - For each community, synthesize a comprehensive summary from its constituent nodes and edges using the `KnowledgeExtractor` / LLM client.
+  - Persist each summary as a `KnowledgeObject` with `layer = 1` and its 64-d `pgvector` embedding.
+  - Create hierarchical `GraphTuple` edges `(community_id, "SUMMARIZES", member_node_id)` linking each Summary Node to its constituent Layer 0 nodes.
 
-### 3. Embeddings for Summaries
-- Summary Nodes must have their textual summaries embedded and stored via `pgvector`.
-- This enables high-level semantic search across broad topics, facilitating global queries.
+### 3. API & Automatic Summarization
+- Automatically update/generate community summaries during ingestion or via `POST /summarize` (`200 OK` returning `{"communities_summarized": N, "summary_nodes": [...]}`) so both local and global queries benefit from Layer 1 summaries.
 
 ## Testing Strategy
 - **Unit Tests:**
-  - Provide a mock graph (Nodes and Edges) to the clustering algorithm and verify it correctly identifies expected communities.
-  - Mock the LLM summarization response and verify that the system creates new Summary Nodes and correctly links them to the underlying community nodes.
+  - `test_detect_communities_clusters_connected_subgraphs`: Verifies that a graph with distinct clusters produces the expected deterministic communities.
+  - `test_build_hierarchical_summaries_creates_layer1_nodes_and_edges`: Verifies that community summarization creates `layer = 1` Summary Nodes, generates embeddings, and links them to Layer 0 member nodes with `"SUMMARIZES"` edges.
 - **Integration Tests (`make test-robot`):**
-  - Execute a Robot Framework suite (`make test-robot`) against the running Graphrag API that triggers hierarchical community summarization over ingested `.md` nodes and verifies that Summary Nodes and their `pgvector` embeddings are queryable via the API.
-
-
+  - Execute `make test-robot` against the running Graphrag API to verify community summarization and multi-hop global/local queries.
