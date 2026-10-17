@@ -1,3 +1,5 @@
+use rig_core::client::CompletionClient;
+use rig_core::completion::{AssistantContent, CompletionError, CompletionModel};
 use rig_core::providers::openai::Client;
 use serde::Deserialize;
 use thiserror::Error;
@@ -14,6 +16,8 @@ pub enum LlmError {
     ZeroTimeout,
     #[error(transparent)]
     ClientInit(#[from] rig_core::http_client::Error),
+    #[error(transparent)]
+    CompletionFailed(#[from] CompletionError),
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -65,6 +69,25 @@ impl LlmClient {
             client: rig_client,
             model_name: config.model.clone(),
         })
+    }
+
+    pub async fn prompt(&self, preamble: &str, user_prompt: &str) -> Result<String, LlmError> {
+        let model = self.client.completion_model(&self.model_name);
+        let request = model
+            .completion_request(user_prompt)
+            .preamble(preamble.to_string())
+            .build();
+        let response = model.completion(request).await?;
+        let text = response
+            .choice
+            .iter()
+            .filter_map(|item| match item {
+                AssistantContent::Text(t) => Some(t.text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        Ok(text)
     }
 }
 
