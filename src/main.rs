@@ -67,7 +67,13 @@ async fn main() {
     let host = config.server_host.clone();
     let port = config.server_port;
 
-    let llm_client = crate::llm_tools::LlmClient::new(&config.llm).unwrap();
+    let llm_client = match crate::llm_tools::LlmClient::new(&config.llm) {
+        Ok(client) => client,
+        Err(e) => {
+            error!("Failed to initialize LlmClient: {}", e);
+            process::exit(1);
+        }
+    };
     let app_state = AppState {
         pool,
         config: Arc::new(config),
