@@ -33,5 +33,7 @@ Parse raw markdown text into structured graph entities (Knowledge Objects and Gr
 - **Unit Tests:**
   - Verify the document chunking logic correctly splits sample markdown texts according to the configured strategy.
   - Mock the `rig-core` LLM response to validate that the parsing logic correctly structures the returned Knowledge Objects and Tuples.
-- **Integration Tests:**
-  - Run an extraction pipeline against a sample markdown file using a local LLM (if available via `rig-core`) or mock, ensuring idempotency on repeated runs.
+- **Integration Tests (`make test-robot`):**
+  - Execute a Robot Framework suite (`integration-tests/tests/*.robot` via `make test-robot`) against the running Graphrag service that loads a sample markdown file via the backend API, ensuring idempotency on repeated runs and cleaning up created entities in `[Teardown]`.
+
+

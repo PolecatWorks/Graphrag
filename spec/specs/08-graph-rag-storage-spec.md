@@ -24,8 +24,10 @@ Persist extracted entities supporting both semantic similarity search and struct
 - A unified schema or reliable synchronization mechanism must be implemented to link vector embeddings to their corresponding graph nodes.
 
 ## Testing Strategy
-- **Integration Tests:**
-  - Spin up a PostgreSQL container with both `pgvector` and `Apache AGE` extensions installed.
-  - Insert mock Knowledge Objects and Graph Tuples into the database.
-  - Verify that `pgvector` queries return expected nearest neighbors based on mock embeddings.
-  - Execute Cypher queries using Apache AGE to validate correct graph traversal and structural integrity.
+- **Integration Tests (`make test-robot`):**
+  - Execute Robot Framework integration tests (`make test-robot` / `./integration-tests/run-tests-local.sh`) against the already-running Graphrag backend and PostgreSQL (`pgvector` + `Apache AGE`).
+  - Load `.md` files and insert Knowledge Objects and Graph Tuples via the backend API.
+  - Verify that `pgvector` semantic queries return expected nearest neighbors.
+  - Execute Cypher traversal queries via the API to validate structural integrity, and clean up created graph/vector data in `[Teardown]`.
+
+

@@ -82,14 +82,18 @@ flowchart TD
 - **Embeddings:** Summary Nodes are also embedded via `pgvector`, allowing high-level semantic search across broad topics.
 - *Note: This hierarchical component is documented here as a core capability but will be broken out into a separate technical specification during the implementation phase.*
 
-### 4. Baseline Evaluation Data & Benchmarking
-**Objective:** Ensure the Graph RAG pipeline can be empirically tested for accuracy and regression.
-- **Dataset:** We will curate a subset of interconnected markdown documents derived from an established multi-hop reasoning dataset (e.g., HotpotQA style) or a complex narrative wiki (e.g., historical events).
-- **Test Harness:** The sample data must be stored in the repository (e.g., `tests/data/graph_rag_baseline/`) and used in automated integration tests to:
-  1. Validate that the LLM extraction yields a consistent graph structure.
-  2. Prove that Cypher queries on Apache AGE return the expected multi-hop results.
-  3. Ensure that changes to prompts or chunking logic do not regress the quality of the extracted knowledge graph.
+### 4. Baseline Evaluation Data & Integration Testing (`make test-robot` + Ragas)
+**Objective:** Ensure the Graph RAG pipeline can be empirically tested for accuracy and regression via automated Robot Framework integration suites (`make test-robot`) and **Ragas** RAG evaluation metrics.
+- **Dataset:** Curated interconnected markdown documents stored in `tests/data/graph_rag_baseline/` (`01_apollo_program.md` through `05_john_f_kennedy.md`).
+- **Integration Test Harness (`make test-robot`):** Executed via `make test-robot` (`./integration-tests/run-tests-local.sh` running Robot Framework `.robot` suites under `integration-tests/tests/`) against an already-running Graphrag service:
+  1. **Load Markdown Files:** Upload/ingest the `.md` files from `tests/data/graph_rag_baseline/` via the running Graphrag ingestion API.
+  2. **Graph & Vector Verification:** Query the Graphrag APIs to verify that Knowledge Objects (nodes) and Graph Tuples (edges) were extracted and stored in Apache AGE and `pgvector`.
+  3. **AI Question & Response Verification via Ragas (`RagasEvalLibrary.py`):** Issue single-hop and multi-hop natural-language questions against the Graphrag query API and evaluate the returned AI answer and retrieved graph context using **Ragas** (`Faithfulness`, `FactualCorrectness`, `ResponseRelevancy`, and `LLMContextRecall`) against ground-truth reference answers derived from the `.md` files.
+  4. **Teardown:** Clean up all ingested test artifacts during `[Teardown]` so test runs remain repeatable and isolated.
 
 ## Future Considerations
 - Supporting dynamic updates to the graph when source markdown files are edited or deleted.
 - Implementing a specialized Query Router LLM that decides whether an incoming user query requires a local search (Layer 0 nodes), a global search (Community Summaries), or a hybrid approach.
+
+
+

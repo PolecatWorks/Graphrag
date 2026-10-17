@@ -88,6 +88,7 @@ Both dev servers have **watch/hot-reload enabled** — do **NOT** manually kill 
 
 ## Configuration Management & Loading Standards
 
+- **CLI Argument Parsing (`clap` Derive)**: All command-line argument parsing MUST use `clap` with the `derive` feature (`#[derive(clap::Parser)]`, `#[derive(clap::Subcommand)]`, `#[derive(clap::Args)]`) in `src/cli.rs`. Manual `std::env::args` inspection or imperative `clap::Command` builder chains are prohibited.
 - **Zero Direct Runtime Environment Variables**: Never read environment variables directly at runtime in handler, execution, or business logic code (e.g. via `std::env::var`, `std::env::var_os`, `process.env`, or similar).
 - **Centralized Configuration Loader**: ALL configuration MUST be defined in configuration structs, provided via the centralized configuration loader (`AppConfig` / YAML configuration files loaded at startup with environment variable override prefixes like `AAD_BE__`), and validated fail-fast during startup.
 - **Modular Config Ownership & Delegated Validation**: Each domain module (e.g., `db`, `llm_tools`) must define and own its domain-specific configuration struct (`DatabaseConfig`, `LlmConfig`), its `.validate()` implementation, and the comprehensive unit tests for its validation rules. `AppConfig` (`src/config.rs`) composes these domain configs, delegates validation to each module (`self.database.validate()?`, `self.llm.validate()?`), and tests top-level config loading, overrides, and delegation.
