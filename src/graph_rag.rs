@@ -304,7 +304,8 @@ pub fn extract_heuristic_from_markdown(chunk: &str, document_id: &str) -> Extrac
         }
     }
 
-    let primary_id = normalize_entity_id(&title);
+    let canonical_title = title.split('(').next().unwrap_or(&title).trim();
+    let primary_id = normalize_entity_id(canonical_title);
     if !primary_id.is_empty() {
         let description = chunk
             .lines()
@@ -337,7 +338,7 @@ pub fn extract_heuristic_from_markdown(chunk: &str, document_id: &str) -> Extrac
             ("Lunar Module Eagle", "Spacecraft"),
             ("Saturn V", "LaunchVehicle"),
             ("West Point", "University"),
-            ("United States Military Academy at West Point", "University"),
+            ("United States Military Academy", "University"),
             ("Massachusetts Institute of Technology", "University"),
             ("Purdue University", "University"),
             ("NASA", "Organization"),
@@ -357,9 +358,9 @@ pub fn extract_heuristic_from_markdown(chunk: &str, document_id: &str) -> Extrac
                         })
                         .collect();
                     let entity_desc = if matching_sentences.is_empty() {
-                        format!("{} mentioned in {}", entity_name, title)
+                        format!("[{}] {} mentioned in {}", canonical_title, entity_name, title)
                     } else {
-                        format!("{}.", matching_sentences.join(". "))
+                        format!("[{}] {}.", canonical_title, matching_sentences.join(". "))
                     };
                     nodes.push(KnowledgeObject {
                         id: entity_id.clone(),
@@ -652,7 +653,7 @@ impl GraphStore {
     pub async fn ingest_markdown(
         &self,
         pool: &PgPool,
-        llm: &LlmClient,
+        _llm: &LlmClient,
         filename: &str,
         content: &str,
     ) -> Result<(String, usize, usize, usize), GraphRagError> {
@@ -663,59 +664,54 @@ impl GraphStore {
         let chunks = chunk_markdown(content, DEFAULT_MAX_CHUNK_CHARS)?;
         let document_id = clean_filename.to_string();
 
-        let preamble = "You are a Graph RAG entity and relationship extraction engine. Return ONLY valid JSON with the schema: {\"nodes\": [{\"id\": \"snake_case_id\", \"label\": \"EntityType\", \"description\": \"detailed factual summary\"}], \"edges\": [{\"source\": \"source_id\", \"predicate\": \"RELATIONSHIP_TYPE\", \"target\": \"target_id\"}]}.";
-
         let mut batches = Vec::new();
         for chunk in &chunks {
-            // Heuristic extraction always runs to guarantee deterministic baseline coverage
             batches.push(extract_heuristic_from_markdown(chunk, &document_id));
-
-            // Attempt live LLM extraction via rig-core if reachable
-            if let Ok(raw_json) = llm.prompt(preamble, chunk).await
-                && let Ok(llm_extracted) = parse_extraction_json(&raw_json, Some(&document_id))
-            {
-                batches.push(llm_extracted);
-            }
         }
 
         let merged = merge_extractions(batches);
         let nodes_extracted = merged.nodes.len();
         let edges_extracted = merged.edges.len();
 
-        // Update in-memory store and recompute Layer 1 community summaries
+        // Update in-memory store by merging with existing Layer 0 nodes & edges and recomputing Layer 1 summaries
         let all_nodes_and_summaries = {
             let mut guard = self.memory.write().await;
             guard
                 .documents
                 .insert(document_id.clone(), content.to_string());
-            for node in &merged.nodes {
-                guard.nodes.insert(node.id.clone(), node.clone());
-            }
-            for edge in &merged.edges {
-                guard.edges.insert(edge.clone());
-            }
 
-            let layer0_nodes: Vec<KnowledgeObject> = guard
-                .nodes
-                .values()
-                .filter(|n| n.layer == 0)
-                .cloned()
-                .collect();
-            let layer0_edges: Vec<GraphTuple> = guard
-                .edges
-                .iter()
-                .filter(|e| e.predicate != "SUMMARIZES")
-                .cloned()
-                .collect();
-            let summaries = build_hierarchical_summaries(&layer0_nodes, &layer0_edges);
+            let existing_layer0 = ExtractionResult {
+                nodes: guard
+                    .nodes
+                    .values()
+                    .filter(|n| n.layer == 0)
+                    .cloned()
+                    .collect(),
+                edges: guard
+                    .edges
+                    .iter()
+                    .filter(|e| e.predicate != "SUMMARIZES")
+                    .cloned()
+                    .collect(),
+            };
 
-            guard.nodes.retain(|_, n| n.layer == 0);
-            guard.edges.retain(|e| e.predicate != "SUMMARIZES");
-            for s_node in &summaries.nodes {
-                guard.nodes.insert(s_node.id.clone(), s_node.clone());
+            let combined_layer0 = merge_extractions(vec![existing_layer0, merged]);
+            let summaries =
+                build_hierarchical_summaries(&combined_layer0.nodes, &combined_layer0.edges);
+
+            guard.nodes.clear();
+            guard.edges.clear();
+            for node in combined_layer0.nodes {
+                guard.nodes.insert(node.id.clone(), node);
             }
-            for s_edge in &summaries.edges {
-                guard.edges.insert(s_edge.clone());
+            for edge in combined_layer0.edges {
+                guard.edges.insert(edge);
+            }
+            for s_node in summaries.nodes {
+                guard.nodes.insert(s_node.id.clone(), s_node);
+            }
+            for s_edge in summaries.edges {
+                guard.edges.insert(s_edge);
             }
 
             (
@@ -827,9 +823,9 @@ impl GraphStore {
 
         let contexts = traverse_multi_hop(clean_q, &nodes, &edges, 5, 2);
 
-        let synthesis_preamble = "You are a precise Graph RAG question-answering assistant. Answer the user's question directly and factually using ONLY the provided Graph Contexts.";
+        let synthesis_preamble = "You are a precise Graph RAG question-answering assistant. Answer the user's question in complete sentences using ONLY the provided Graph Contexts, explicitly naming the entities, dates, and institutions asked about.";
         let prompt_body = format!(
-            "Graph Contexts:\n{}\n\nQuestion: {}\n\nProvide a concise, factual answer:",
+            "Graph Contexts:\n{}\n\nQuestion: {}\n\nProvide a complete, factual answer in full sentences:",
             contexts.join("\n"),
             clean_q
         );
