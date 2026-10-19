@@ -17,7 +17,7 @@ Single-Hop Query: Apollo 11 Command Module Pilot
     [Documentation]    Verifies Graphrag accurately answers who piloted the Command Module Columbia and remained in lunar orbit.
     [Tags]    graphrag    single-hop    ragas
     ${question}=    Set Variable    Who flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon?
-    ${reference}=   Set Variable    Michael Collins flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the lunar surface.
+    ${reference}=   Set Variable    Michael Collins flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon.
     ${result}=      Ask Graphrag Question    ${question}
     Evaluate Rag Response With Ragas
     ...    question=${question}
@@ -31,7 +31,7 @@ Multi-Hop Query: Presidential Goal Fulfilled By Apollo 11 Crew
     [Documentation]    Traverses across Project Apollo, JFK, and the Apollo 11 crew to verify multi-hop synthesis.
     [Tags]    graphrag    multi-hop    ragas
     ${question}=    Set Variable    Which US President proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and what university did the Lunar Module Eagle pilot earn his doctorate from?
-    ${reference}=   Set Variable    President John F. Kennedy proposed the goal of landing a man on the Moon and returning him safely to Earth on May 25, 1961, which was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin. Buzz Aldrin, the Lunar Module Eagle pilot, earned his Doctor of Science degree from the Massachusetts Institute of Technology (MIT).
+    ${reference}=   Set Variable    President John F. Kennedy proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and the Lunar Module Eagle pilot Buzz Aldrin earned his Doctor of Science doctorate from the Massachusetts Institute of Technology (MIT).
     ${result}=      Ask Graphrag Question    ${question}
     Evaluate Rag Response With Ragas
     ...    question=${question}

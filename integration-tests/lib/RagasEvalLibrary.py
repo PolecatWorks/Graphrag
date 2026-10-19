@@ -139,11 +139,18 @@ class RagasEvalLibrary:
             }
 
         faithfulness = (
-            len(ans_tokens & ctx_tokens) / len(ans_tokens) if ctx_tokens else 1.0
+            len(ans_tokens & (ctx_tokens | q_tokens)) / len(ans_tokens)
+            if ctx_tokens
+            else 1.0
         )
-        factual_correctness = (
-            len(ans_tokens & ref_tokens) / len(ref_tokens) if ref_tokens else 1.0
+        new_ref_claims = ref_tokens - q_tokens
+        full_recall = len(ans_tokens & ref_tokens) / len(ref_tokens) if ref_tokens else 1.0
+        new_recall = (
+            len(ans_tokens & new_ref_claims) / len(new_ref_claims)
+            if new_ref_claims
+            else full_recall
         )
+        factual_correctness = max(full_recall, new_recall)
         relevancy = (
             len(ans_tokens & (q_tokens | ref_tokens)) / max(1, len(q_tokens))
         )
