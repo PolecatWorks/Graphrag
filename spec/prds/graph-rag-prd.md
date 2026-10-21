@@ -91,9 +91,14 @@ flowchart TD
   3. **AI Question & Response Verification via Ragas (`RagasEvalLibrary.py`):** Issue single-hop and multi-hop natural-language questions against the Graphrag query API and evaluate the returned AI answer and retrieved graph context using **Ragas** (`Faithfulness`, `FactualCorrectness`, `ResponseRelevancy`, and `LLMContextRecall`) against ground-truth reference answers derived from the `.md` files.
   4. **Teardown:** Clean up all ingested test artifacts during `[Teardown]` so test runs remain repeatable and isolated.
 
+### 5. Data Element Management (Full BREAD REST API)
+**Objective:** Expose full **Browse, Read, Edit, Add, Delete (BREAD)** HTTP endpoints for managing all Graph RAG data elements directly via the API:
+- **Documents (`/documents`):** Browse, Read, Edit (re-chunk & re-extract), Add, and Delete source Markdown documents.
+- **Knowledge Objects / Nodes (`/nodes`):** Browse (with label, layer, keyword, and semantic vector filters), Read (with incident edges), Edit (with automatic `pgvector` re-embedding), Add, and Delete (with cascading edge cleanup).
+- **Graph Tuples / Edges (`/edges`):** Browse, Read, Edit, Add, and Delete directed `(source, predicate, target)` relationships.
+- **Communities (`/communities`):** Browse, Read, Edit, Rebuild (`POST /communities/rebuild`), and Delete Layer 1+ hierarchical community summaries.
+- See the dedicated **[Graph RAG Data Management (BREAD API) PRD](./graph-rag-api-bread-prd.md)** for full resource schemas, status codes, and cascading synchronization rules.
+
 ## Future Considerations
-- Supporting dynamic updates to the graph when source markdown files are edited or deleted.
 - Implementing a specialized Query Router LLM that decides whether an incoming user query requires a local search (Layer 0 nodes), a global search (Community Summaries), or a hybrid approach.
-
-
 
