@@ -88,7 +88,7 @@ jobs:
           mkdir -p /tmp/digests
           digest="${{ steps.build.outputs.digest }}"
           echo "${digest}"
-          touch "/tmp/digests/${digest#sha256:}"
+          touch "/tmp/digests/${digest}"
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
@@ -119,7 +119,7 @@ jobs:
       - name: Merge and Push Manifest
         run: |
           docker buildx imagetools create -t ghcr.io/polecatworks/graphrag:sha-${{ needs.check-image.outputs.content_sha }} \
-            $(printf "ghcr.io/polecatworks/graphrag@sha256:%s " $(ls /tmp/digests))
+            $(printf "ghcr.io/polecatworks/graphrag@%s " $(ls /tmp/digests))
       - name: Retag main
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
