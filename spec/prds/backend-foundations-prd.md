@@ -164,7 +164,15 @@ flowchart LR
     Ragas -->|5. Faithfulness & Factual Correctness Scores| Reports
 ```
 
+### 8. GitHub CI/CD, Multi-Arch Container Publishing & Ephemeral K8s Integration Testing
+**Objective:** Automate PR validation, multi-architecture (`linux/amd64` + `linux/arm64`) `cargo-chef` container builds, Helm OCI chart publishing, and ephemeral per-PR Kubernetes integration testing via **Garden** and **Robot Framework + Ragas**:
+- **PR Validation (`ci.yml`, `helm-ci-pr.yaml`, `skip-merge-queue.yml`):** Path-filtered `cargo check`, `cargo test` against a `pgvector:pg16` service container, and `helm lint charts/graphrag`, with fast merge-queue status stubs.
+- **Multi-Arch Docker Publish (`docker-publish.yml`, `cleanup-dev-packages.yml`):** Content-SHA-addressed Buildx builds pushed to GHCR (`ghcr.io/polecatworks/graphrag:sha-<CONTENT_SHA>`), zero-rebuild retagging to `:main`/`:latest` on merge, automated `kubectl rollout restart` in `graphrag-dev`, and 2-week package retention.
+- **Ephemeral K8s Integration Tests (`integration-test.yaml`, `garden.yml`, `integration-tests/run-tests.sh`):** Provisions isolated `graphrag-pr-<PR>` namespaces via Garden, resolves pod IPs for direct HaMS `:8079` telemetry verification, runs all Robot + Ragas suites, deploys HTML logs to `gh-pages`, comments the report link on the PR, and tears down the namespace.
+- See the dedicated **[GitHub CI, Multi-Arch Docker Publish & Ephemeral Integration Testing PRD](./ci-cd-container-integration-prd.md)** for full workflow sequences and specifications.
+
 ## Application Startup Lifecycle
+
 
 ```mermaid
 sequenceDiagram
