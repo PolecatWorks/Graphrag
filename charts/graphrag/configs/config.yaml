@@ -1,2 +1,16 @@
 database:
-  url: {{ .Values.config.postgres_url | quote }}
+  url: "postgres://postgres:postgres@postgres-test:5432/graphrag"
+  pool_size: 10
+  timeout_seconds: 30
+server_host: "0.0.0.0"
+server_port: 8080
+hams:
+  address: "0.0.0.0:8079"
+  name: "graphrag"
+  version: "0.1.0"
+  logging: true
+llm:
+  provider: "ollama"
+  base_url: "http://ollama.k8s:80/v1"
+  model: "llama3.1:8b"
+  timeout_seconds: 60

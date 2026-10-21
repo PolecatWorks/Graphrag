@@ -1,34 +1,107 @@
-name: Helm CI (Main)
+name: Helm CI (main)
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'charts/graphrag/**'
+    branches: ["main"]
+
+env:
+  REGISTRY: ghcr.io
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  check-paths:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      charts: ${{ steps.filter.outputs.charts }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          ref: ${{ github.event.merge_group.base_ref || github.ref }}
+          filters: |
+            charts:
+              - 'charts/**'
+              - '.github/workflows/helm-ci-*.yaml'
+
+  lint:
+    needs: check-paths
+    if: needs.check-paths.outputs.charts == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+
+      - name: Lint graphrag
+        run: helm lint charts/graphrag
+
   publish:
+    needs: [check-paths, lint]
+    if: needs.check-paths.outputs.charts == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
-      - uses: actions/checkout@v4.2.2
-      - name: Set up Helm
-        uses: azure/setup-helm@v4.2.0
-      - name: Helm Lint
-        run: helm lint charts/graphrag
-      - name: Stamp Chart
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: lower-repo
+        name: Repository to lowercase
         run: |
-          SHA_SHORT=$(git rev-parse --short HEAD)
-          TIMESTAMP=$(date +%s)
-          sed -i "s/version: .*/version: 0.1.0-main-${TIMESTAMP}-${SHA_SHORT}/" charts/graphrag/Chart.yaml
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Push Chart
+          echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Get Content SHA
+        id: content_sha
+        run: |
+          SHA_SHORT=$(git log -1 --format=%h -- charts/graphrag)
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          echo "sha_short=${TIMESTAMP}-${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Chart Versions
+        run: |
+          suffix="-main-${{ steps.content_sha.outputs.sha_short }}"
+          sed -i "s/^version: .*/&${suffix}/" charts/graphrag/Chart.yaml
+          echo "Updated graphrag Version:"
+          grep "^version:" charts/graphrag/Chart.yaml
+
+      - name: Push Helm chart to OCI for graphrag
         uses: bsord/helm-push@v4
         with:
-          useOCIRegistry: true
-          registry-url: oci://ghcr.io/polecatworks/graphrag/helm
           chart-folder: charts/graphrag
+          useOCIRegistry: true
+          registry-url: oci://ghcr.io/${{ steps.lower-repo.outputs.repository }}/helm
+          username: ${{ github.actor }}
+          access-token: ${{ secrets.GITHUB_TOKEN }}
+          force: true
+
+  ci-success:
+    name: Helm CI Success
+    needs: [check-paths, lint, publish]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Check Status
+        run: |
+          if [[ "${{ needs.check-paths.outputs.charts }}" == 'true' ]]; then
+            if [[ "${{ needs.lint.result }}" != 'success' ]]; then
+               echo "Lint failed!"
+               exit 1
+            fi
+            if [[ "${{ needs.publish.result }}" != 'success' ]]; then
+               echo "Publish failed!"
+               exit 1
+            fi
+          fi
+          echo "Success!"

@@ -2,10 +2,18 @@ name: Docker Publish
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   merge_group:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check-paths:
@@ -13,10 +21,11 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          ref: ${{ github.event.merge_group.base_ref || github.ref }}
           filters: |
             backend:
               - 'src/**'
@@ -28,133 +37,301 @@ jobs:
               - '.github/workflows/docker-publish.yml'
 
   check-image:
-    runs-on: ubuntu-latest
     needs: check-paths
-    if: ${{ needs.check-paths.outputs.backend == 'true' }}
+    if: needs.check-paths.outputs.backend == 'true'
+    runs-on: ubuntu-latest
     outputs:
-      content_sha: ${{ steps.compute.outputs.content_sha }}
+      content_sha: ${{ steps.backend-content.outputs.CONTENT_SHA }}
       exists: ${{ steps.check.outputs.exists }}
     steps:
-      - uses: actions/checkout@v4.2.2
-      - id: compute
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Content SHA
+        id: backend-content
         run: |
           CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
-          echo "content_sha=$CONTENT_SHA" >> $GITHUB_OUTPUT
-      - id: check
+          echo "CONTENT_SHA=$CONTENT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Determine Image Name
+        id: image-name
         run: |
-          if docker manifest inspect ghcr.io/polecatworks/graphrag:sha-${{ steps.compute.outputs.content_sha }} > /dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+          repo_name="${{ github.repository }}"
+          echo "IMAGE_NAME_LOWERCASE=$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if image exists
+        id: check
+        run: |
+          IMAGE_REF="${{ env.REGISTRY }}/${{ steps.image-name.outputs.IMAGE_NAME_LOWERCASE }}:sha-${{ steps.backend-content.outputs.CONTENT_SHA }}"
+          echo "Checking if image exists: $IMAGE_REF"
+          if docker manifest inspect "$IMAGE_REF" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Image exists!"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Image does not exist."
           fi
 
   build:
-    needs: check-image
-    if: ${{ needs.check-image.outputs.exists != 'true' }}
+    needs: [check-paths, check-image]
+    if: github.event_name != 'pull_request' && needs.check-paths.outputs.backend == 'true' && needs.check-image.outputs.exists != 'true'
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - arch: amd64
-            os: ubuntu-24.04
-            runner: ubuntu-24.04
-          - arch: arm64
-            os: ubuntu-24.04-arm
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-24.04' || matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' }}
+    name: ${{ matrix.platform }} Graphrag Docker
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
     steps:
-      - uses: actions/checkout@v4.2.2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.7.1
-      - name: Log in to GHCR
-        uses: docker/login-action@v3.3.0
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          registry: ghcr.io
+          fetch-depth: 0
+
+      - name: Determine Content SHA
+        id: backend-content
+        run: |
+          CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+          echo "Determined content SHA: $CONTENT_SHA"
+          echo "CONTENT_SHA=$CONTENT_SHA" >> "$GITHUB_ENV"
+
+      - name: Prepare environment for current platform
+        id: prepare
+        run: |
+          platform=${{ matrix.platform }}
+          repo_name="${{ github.repository }}"
+          echo "IMAGE_NAME_LOWERCASE=$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+          echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ matrix.platform }}
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and Push Digest
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=main,enable=${{ github.ref_name == 'main' }}
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
+            type=raw,value=sha-${{ env.CONTENT_SHA }}
+
+      - name: Build and push Docker image
         id: build
-        uses: docker/build-push-action@v6.9.0
+        uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile
           push: true
-          platforms: linux/${{ matrix.arch }}
-          cache-from: type=registry,ref=ghcr.io/polecatworks/graphrag:buildcache-linux-${{ matrix.arch }}
-          cache-to: type=registry,ref=ghcr.io/polecatworks/graphrag:buildcache-linux-${{ matrix.arch }},mode=max
-          outputs: type=image,name=ghcr.io/polecatworks/graphrag,push-by-digest=true,name-canonical=true
-          provenance: false
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }}:buildcache-${{ env.PLATFORM_PAIR }}
+            type=gha,scope=${{ github.repository }}-graphrag-main-${{ matrix.platform }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }}:buildcache-${{ env.PLATFORM_PAIR }},mode=max,image-manifest=true
+
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
           digest="${{ steps.build.outputs.digest }}"
-          echo "${digest}"
-          touch "/tmp/digests/${digest}"
+          touch "/tmp/digests/${digest#sha256:}"
+
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.arch }}
+          name: digests-${{ env.PLATFORM_PAIR }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
 
   merge:
-    needs: [check-image, build]
-    if: ${{ needs.check-image.outputs.exists != 'true' }}
+    name: Merge Docker manifests
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    needs:
+      - check-image
+      - build
+    if: github.event_name != 'pull_request' && needs.build.result == 'success'
     steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.7.1
-      - name: Log in to GHCR
-        uses: docker/login-action@v3.3.0
+      - name: Prepare environment
+        run: |
+          repo_name="${{ github.repository }}"
+          echo "IMAGE_NAME_LOWERCASE=$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Checkout repository (for history)
+        uses: actions/checkout@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Determine Content SHA
+        id: backend-content
+        run: |
+          CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+          echo "CONTENT_SHA=$CONTENT_SHA" >> "$GITHUB_ENV"
+
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
           path: /tmp/digests
           pattern: digests-*
           merge-multiple: true
-      - name: Merge and Push Manifest
-        run: |
-          docker buildx imagetools create -t ghcr.io/polecatworks/graphrag:sha-${{ needs.check-image.outputs.content_sha }} \
-            $(printf "ghcr.io/polecatworks/graphrag@%s " $(ls /tmp/digests))
-      - name: Retag main
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-        run: |
-          docker buildx imagetools create -t ghcr.io/polecatworks/graphrag:main \
-            -t ghcr.io/polecatworks/graphrag:latest \
-            ghcr.io/polecatworks/graphrag:sha-${{ needs.check-image.outputs.content_sha }}
 
-  retag:
-    needs: check-image
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.check-image.outputs.exists == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Log in to GHCR
-        uses: docker/login-action@v3.3.0
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          registry: ghcr.io
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }}
+          annotations: |
+            type=org.opencontainers.image.description,value=${{ github.event.repository.description || 'GraphRAG-RS Service' }}
+          tags: |
+            type=raw,value=main,enable=${{ github.ref_name == 'main' }}
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
+            type=raw,value=sha-${{ env.CONTENT_SHA }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Retag existing image to main/latest
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
         run: |
-          docker buildx imagetools create -t ghcr.io/polecatworks/graphrag:main \
-            -t ghcr.io/polecatworks/graphrag:latest \
-            ghcr.io/polecatworks/graphrag:sha-${{ needs.check-image.outputs.content_sha }}
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }}@sha256:%s ' *)
+
+      - name: Inspect image
+        id: inspect
+        run: |
+          docker buildx imagetools inspect '${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }}:${{ steps.meta.outputs.version }}'
+
+  retag:
+    name: Retag existing image for main
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    needs: [check-paths, check-image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.check-paths.outputs.backend == 'true' && needs.check-image.outputs.exists == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Content SHA
+        id: backend-content
+        run: |
+          CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+          echo "CONTENT_SHA=$CONTENT_SHA" >> "$GITHUB_ENV"
+
+      - name: Determine Image Name
+        id: image-name
+        run: |
+          repo_name="${{ github.repository }}"
+          echo "IMAGE_NAME_LOWERCASE=$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retag main and latest
+        run: |
+          SOURCE_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }}:sha-${{ env.CONTENT_SHA }}"
+          echo "Retagging $SOURCE_IMAGE to main and latest"
+          docker buildx imagetools create \
+            -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }}:main" \
+            -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }}:latest" \
+            "$SOURCE_IMAGE"
 
   rollout-dev:
-    needs: [merge, retag]
-    if: always() && (needs.merge.result == 'success' || needs.retag.result == 'success') && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Rollout Dev
+    needs: [check-paths, check-image, merge, retag]
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.check-paths.outputs.backend == 'true' &&
+      (needs.retag.result == 'success' || needs.merge.result == 'success')
     runs-on: polecatworks-runner
     steps:
-      - name: Rollout restart
-        run: kubectl rollout restart deployment/graphrag -n graphrag-dev
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "latest"
+
+      - name: Configure Kubeconfig
+        run: |
+          kubectl config set-cluster local --server=https://kubernetes.default.svc --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          kubectl config set-credentials runner --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+          kubectl config set-context local --cluster=local --user=runner
+          kubectl config use-context local
+
+      - name: Trigger Rolling Restart
+        run: |
+          kubectl rollout restart deployment/graphrag -n graphrag-dev || echo "Deployment graphrag in graphrag-dev not yet provisioned"
 
   ci-success:
     name: Graphrag Docker Success
-    needs: [merge, retag]
+    needs: [check-paths, check-image, merge, retag, rollout-dev]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Docker CI successful."
+      - name: Check Status
+        run: |
+          if [[ "${{ github.event_name }}" != 'pull_request' && "${{ needs.check-paths.outputs.backend }}" == 'true' ]]; then
+            if [[ "${{ github.event_name }}" == 'merge_group' ]]; then
+              if [[ "${{ needs.check-image.outputs.exists }}" != 'true' && "${{ needs.merge.result }}" != 'success' ]]; then
+                 echo "Build/Merge failed for merge_group!"
+                 exit 1
+              fi
+            else
+              if [[ "${{ needs.retag.result }}" != 'success' && "${{ needs.merge.result }}" != 'success' ]]; then
+                 echo "Build/Merge/Retag failed!"
+                 exit 1
+              fi
+              if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" && "${{ needs.rollout-dev.result }}" != 'success' ]]; then
+                 echo "Rollout failed!"
+                 exit 1
+              fi
+            fi
+          fi
+          echo "Success!"

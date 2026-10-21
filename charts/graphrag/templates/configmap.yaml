@@ -6,4 +6,4 @@ metadata:
     {{- include "graphrag.labels" . | nindent 4 }}
 data:
   config.yaml: |
-{{ tpl (.Files.Get "configs/config.yaml") . | indent 4 }}
+    {{- include "graphrag.config" . | nindent 4 }}

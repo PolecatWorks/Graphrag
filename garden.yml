@@ -1,36 +1,32 @@
-project:
-  name: graphrag
-  environments:
-    - name: local
-      variables:
-        namespace: graphrag-${local.env.USER}
-    - name: pr
-      variables:
-        namespace: graphrag-pr-${var.pr-number}
-        graphrag-image: "ghcr.io/polecatworks/graphrag"
-        graphrag-tag: "latest"
-  defaultEnvironment: local
+kind: Project
+apiVersion: garden.io/v2
+name: graphrag
+
+variables:
+  pr-number: ${local.env.PR_NUMBER || "local"}
+  kube-context: "${local.env.GARDEN_KUBECONTEXT || (local.env.CI == 'true' ? 'local' : 'kubernetes-admin@kubernetes')}"
+  graphrag-image: ${local.env.GRAPHRAG_IMAGE || "ghcr.io/polecatworks/graphrag"}
+  graphrag-tag: ${local.env.GRAPHRAG_TAG || "main"}
 
 providers:
   - name: kubernetes
+    context: ${var.kube-context}
+    namespace: ${environment.namespace}
     environments:
-      - name: local
-      - name: pr
+      - pr
+      - local
 
----
-kind: Build
-name: get-be-sha
-type: exec
-spec:
-  command:
-    - sh
-    - -c
-    - "git rev-parse HEAD > commit_sha.txt"
+environments:
+  - name: local
+    defaultNamespace: graphrag-${local.env.USER}
+  - name: pr
+    defaultNamespace: graphrag-pr-${var.pr-number}
 
 ---
 kind: Deploy
-name: ghcr-external-secret
 type: kubernetes
+name: ghcr-external-secret
+description: "Creates GHCR image pull secret directly from GHCR_TOKEN environment variable"
 spec:
   manifests:
     - apiVersion: v1
@@ -38,49 +34,66 @@ spec:
       metadata:
         name: ghcr-secret
       type: kubernetes.io/dockerconfigjson
-      data:
-        .dockerconfigjson: e30=
+      stringData:
+        .dockerconfigjson: |
+          {
+            "auths": {
+              "ghcr.io": {
+                "username": "${local.env.GHCR_USER || 'bengreen'}",
+                "password": "${local.env.GHCR_TOKEN || ''}",
+                "auth": "${base64Encode((local.env.GHCR_USER || 'bengreen') + ':' + (local.env.GHCR_TOKEN || ''))}"
+              }
+            }
+          }
 
 ---
 kind: Deploy
-name: postgres-test
 type: kubernetes
+name: postgres-test
+description: "Ephemeral PostgreSQL + pgvector database for integration tests & dev"
 spec:
   manifests:
     - apiVersion: v1
-      kind: Pod
-      metadata:
-        name: postgres-test
-        labels:
-          app: postgres-test
-      spec:
-        containers:
-          - name: postgres
-            image: pgvector/pgvector:pg16
-            env:
-              - name: POSTGRES_USER
-                value: postgres
-              - name: POSTGRES_PASSWORD
-                value: postgres
-              - name: POSTGRES_DB
-                value: graphrag
-            ports:
-              - containerPort: 5432
-            volumeMounts:
-              - name: init-sql
-                mountPath: /docker-entrypoint-initdb.d/init.sql
-                subPath: init.sql
-        volumes:
-          - name: init-sql
-            configMap:
-              name: postgres-init
-    - apiVersion: v1
       kind: ConfigMap
       metadata:
-        name: postgres-init
+        name: postgres-test-init
       data:
         init.sql: |
           CREATE EXTENSION IF NOT EXISTS vector;
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: postgres-test
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: postgres-test
+        template:
+          metadata:
+            labels:
+              app: postgres-test
+          spec:
+            containers:
+              - name: postgres
+                image: pgvector/pgvector:pg16
+                env:
+                  - name: POSTGRES_DB
+                    value: graphrag
+                  - name: POSTGRES_USER
+                    value: postgres
+                  - name: POSTGRES_PASSWORD
+                    value: postgres
+                ports:
+                  - containerPort: 5432
+                    name: postgres
+                volumeMounts:
+                  - name: init-script
+                    mountPath: /docker-entrypoint-initdb.d
+            volumes:
+              - name: init-script
+                configMap:
+                  name: postgres-test-init
     - apiVersion: v1
       kind: Service
       metadata:
@@ -89,19 +102,59 @@ spec:
         ports:
           - port: 5432
             targetPort: 5432
+            name: postgres
         selector:
           app: postgres-test
 
 ---
 kind: Deploy
-name: graphrag
 type: helm
+name: graphrag
+description: "Deploy GraphRAG-RS Rust backend service"
 dependencies:
-  - postgres-test
+  - deploy.postgres-test
+  - deploy.ghcr-external-secret
+  - build.get-be-sha
+source:
+  path: charts/graphrag
+include:
+  - "**/*"
 spec:
-  chart:
-    path: charts/graphrag
   values:
     image:
-      repository: ${var.graphrag-image}
-      tag: ${var.graphrag-tag}
+      repository: '${local.env.GRAPHRAG_IMAGE != null ? local.env.GRAPHRAG_IMAGE : actions.build.get-be-sha.outputs.image}'
+      tag: '${local.env.GRAPHRAG_TAG != null ? local.env.GRAPHRAG_TAG : actions.build.get-be-sha.outputs.tag}'
+      pullPolicy: '${local.env.GRAPHRAG_IMAGE != null ? "IfNotPresent" : "Always"}'
+    imagePullSecrets:
+      - name: ghcr-secret
+    config:
+      database:
+        url: "postgres://postgres:postgres@postgres-test:5432/graphrag"
+
+---
+kind: Build
+type: exec
+name: get-be-sha
+description: "Get git commit SHA and image repo for backend files"
+buildAtSource: true
+spec:
+  command:
+    - "/bin/bash"
+    - "-c"
+    - |
+      CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+      MAIN_SHA=$(git log -1 --format=%H origin/main -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml 2>/dev/null || echo "")
+      HAS_UNCOMMITTED=$(git status --porcelain -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+      IMAGE="ghcr.io/polecatworks/graphrag"
+      if { [ -n "$HAS_UNCOMMITTED" ] || [ "$CONTENT_SHA" != "$MAIN_SHA" ]; } && [ -n "$CONTENT_SHA" ] && docker manifest inspect "$IMAGE:sha-$CONTENT_SHA" >/dev/null 2>&1; then
+        TAG="sha-$CONTENT_SHA"
+      else
+        TAG="main"
+      fi
+      if [ -n "$GARDEN_ACTION_OUTPUTS_JSON_PATH" ]; then
+        echo "{\"image\": \"$IMAGE\", \"tag\": \"$TAG\"}" > "$GARDEN_ACTION_OUTPUTS_JSON_PATH"
+      elif [ -n "$GARDEN_ACTION_JSON_OUTPUTS_PATH" ]; then
+        echo "{\"image\": \"$IMAGE\", \"tag\": \"$TAG\"}" > "$GARDEN_ACTION_JSON_OUTPUTS_PATH"
+      else
+        echo "Outputs path not defined by Garden, skipping writing outputs file"
+      fi

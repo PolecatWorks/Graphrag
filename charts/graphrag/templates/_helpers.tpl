@@ -6,6 +6,13 @@ Expand the name of the chart.
 {{- end }}
 
 {{/*
+Create chart name and version as used by the chart label.
+*/}}
+{{- define "graphrag.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
 Create a default fully qualified app name.
 */}}
 {{- define "graphrag.fullname" -}}
@@ -21,8 +28,27 @@ Create a default fully qualified app name.
 {{- end }}
 {{- end }}
 
+{{- define "graphrag.config" -}}
+{{- $baseconfig := fromYaml (.Files.Get "configs/config.yaml") }}
+{{- $newconfig := default dict .Values.config }}
+{{- $postmerge := mergeOverwrite $baseconfig $newconfig }}
+{{- tpl (toYaml $postmerge) . }}
+{{- end -}}
+
+{{- define "graphrag.volumes" -}}
+{{- tpl (toYaml .Values.volumes) . }}
+{{- end -}}
+
+{{- define "graphrag.volumeMounts" -}}
+{{- tpl (toYaml .Values.volumeMounts) . }}
+{{- end -}}
+
+{{- define "graphrag.env" -}}
+{{- tpl (toYaml .Values.env) . }}
+{{- end -}}
+
 {{/*
-Chart labels
+Common labels
 */}}
 {{- define "graphrag.labels" -}}
 helm.sh/chart: {{ include "graphrag.chart" . }}
@@ -40,11 +66,4 @@ Selector labels
 app.kubernetes.io/name: {{ include "graphrag.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app: {{ include "graphrag.name" . }}
-{{- end }}
-
-{{/*
-Create chart name and version as used by the chart label.
-*/}}
-{{- define "graphrag.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}

@@ -1,4 +1,5 @@
 name: Cleanup Dev Packages
+
 on:
   schedule:
     - cron: '0 0 * * *'
@@ -7,13 +8,37 @@ on:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
-      - name: Clean up old graphrag images
+      - name: Set Repository Name
+        id: repo
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          echo "repo_name=$(echo "$REPO_NAME" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Cleanup main graphrag packages older than 2 weeks (excluding release tags)
         uses: snok/container-retention-policy@v2.2.1
         with:
-          image-names: graphrag, graphrag/helm/graphrag
+          account-type: org
+          org-name: ${{ github.repository_owner }}
+          image-names: ${{ steps.repo.outputs.repo_name }}
           cut-off: 2 weeks ago UTC
-          keep-at-least: 3
-          skip-tags: main, latest, *.*.*, v*.*.*
-          account-type: personal
+          timestamp-to-use: updated_at
+          skip-tags: main,latest,*.*.*,v*.*.*
+          keep-at-least: 1
           token: ${{ secrets.GITHUB_TOKEN }}
+          token-type: github-token
+
+      - name: Cleanup helm packages older than 2 weeks (excluding release tags)
+        uses: snok/container-retention-policy@v2.2.1
+        with:
+          account-type: org
+          org-name: ${{ github.repository_owner }}
+          image-names: ${{ steps.repo.outputs.repo_name }}/helm/graphrag
+          cut-off: 2 weeks ago UTC
+          timestamp-to-use: updated_at
+          skip-tags: main,latest,*.*.*,v*.*.*
+          keep-at-least: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+          token-type: github-token

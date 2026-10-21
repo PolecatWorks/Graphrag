@@ -1,6 +1,8 @@
 kind: Deploy
-name: robot-test-runner
 type: kubernetes
+name: robot-test-runner
+dependencies:
+  - deploy.graphrag
 spec:
   manifests:
     - apiVersion: v1
@@ -11,19 +13,25 @@ spec:
           app: robot-test-runner
       spec:
         containers:
-          - name: runner
+          - name: robot
             image: marketsquare/robotframework-browser:latest
-            command: ["sleep", "infinity"]
+            command: ["/bin/bash", "-c", "sleep infinity"]
+            securityContext:
+              runAsUser: 1001
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: "2"
+                memory: 4Gi
 
 ---
 kind: Test
-name: integration-all
 type: exec
+name: integration-all
+timeout: 900
 dependencies:
-  - robot-test-runner
-  - graphrag
+  - deploy.robot-test-runner
 spec:
-  command:
-    - sh
-    - -c
-    - "GARDEN_NAMESPACE=${environment.namespace} ./integration-tests/run-tests.sh"
+  command: ["/bin/bash", "-c", "if [ -f ./integration-tests/run-tests.sh ]; then GARDEN_NAMESPACE=${environment.namespace} ./integration-tests/run-tests.sh; else (cd .. && GARDEN_NAMESPACE=${environment.namespace} ./integration-tests/run-tests.sh); fi"]
