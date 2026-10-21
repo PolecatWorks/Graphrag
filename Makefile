@@ -35,3 +35,24 @@ test:
 # Runs Robot Framework + Ragas integration tests against the already-running Graphrag service
 test-robot:
 	./integration-tests/run-tests-local.sh
+
+# Docker build
+docker: build-docker
+build-docker:
+	docker build -t graphrag:latest .
+
+# Run Docker locally mapping 8080 and 8079
+docker-run:
+	docker run -p 8080:8080 -p 8079:8079 graphrag:latest
+
+# Helm lint
+helm-lint:
+	helm lint charts/graphrag
+
+# Garden deployment
+garden-up:
+	garden deploy --env local
+
+# Garden integration tests
+garden-test:
+	garden test --env local

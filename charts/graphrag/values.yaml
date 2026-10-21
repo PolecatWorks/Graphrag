@@ -1,0 +1,48 @@
+image:
+  repository: ghcr.io/polecatworks/graphrag
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podSecurityContext: {}
+
+securityContext: {}
+
+container:
+  port: 8080
+  hamsPort: 8079
+
+service:
+  type: ClusterIP
+  port: 80
+  hamsPort: 8079
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+config:
+  postgres_url: "postgres://postgres:postgres@postgres-test:5432/graphrag"

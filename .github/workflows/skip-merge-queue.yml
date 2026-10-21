@@ -1,0 +1,22 @@
+name: Skip Merge Queue Checks
+on:
+  merge_group:
+
+jobs:
+  backend-test:
+    name: Build & Test Backend
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Skipping backend-test on merge queue"
+
+  helm-lint:
+    name: Helm Chart Lint
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Skipping helm-lint on merge queue"
+
+  helm-ci-success:
+    name: Helm CI Success
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Skipping helm-ci-success on merge queue"

@@ -1,0 +1,29 @@
+kind: Deploy
+name: robot-test-runner
+type: kubernetes
+spec:
+  manifests:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: robot-test-runner
+        labels:
+          app: robot-test-runner
+      spec:
+        containers:
+          - name: runner
+            image: marketsquare/robotframework-browser:latest
+            command: ["sleep", "infinity"]
+
+---
+kind: Test
+name: integration-all
+type: exec
+dependencies:
+  - robot-test-runner
+  - graphrag
+spec:
+  command:
+    - sh
+    - -c
+    - "GARDEN_NAMESPACE=${environment.namespace} ./integration-tests/run-tests.sh"
