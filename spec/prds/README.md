@@ -8,3 +8,4 @@ This directory contains the foundational Product Requirements Documents that des
 ## Related
 * [Specifications (Specs)](../specs/README.md) - Derived implementation contracts.
 * [Graph RAG](./graph-rag-prd.md)
+* [Graph RAG Data Management (BREAD API)](./graph-rag-api-bread-prd.md)

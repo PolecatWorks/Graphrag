@@ -2,13 +2,16 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.80%2B-blue.svg)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build Status](https://github.com/your-org/graphrag-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/your-org/graphrag-rs/actions)
+[![Build Status](https://github.com/PolecatWorks/Graphrag/actions/workflows/rust.yml/badge.svg)](https://github.com/PolecatWorks/Graphrag/actions)
 
-**GraphRAG-RS** is a high-performance Rust microservice that ingests documents and generates a PostgreSQL graph database, enabling advanced Retrieval-Augmented Generation (RAG) using semantic search and graph-based relationships.
+**GraphRAG-RS** is a high-performance Rust microservice that ingests Markdown documents, extracts Knowledge Objects (nodes) and Graph Tuples (edges), builds hierarchical community summaries, and answers single-hop and multi-hop natural-language queries using semantic vector search (`pgvector`) and graph traversal.
 
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [API Reference](#api-reference)
+  - [Primary GraphRAG API (`:8080`)](#primary-graphrag-api-8080)
+  - [Health Monitoring Sidecar (HaMS) API (`:8079`)](#health-monitoring-sidecar-hams-api-8079)
 - [Quickstart & Local Setup](#quickstart--local-setup)
 - [Configuration](#configuration)
 - [Testing](#testing)
@@ -19,68 +22,305 @@
 
 ## Architecture Overview
 
-This project is built as a highly concurrent Rust microservice with a focus on reliability and advanced LLM integrations.
+This project is built as a concurrent Rust microservice exposing two independent HTTP listeners:
+1. **Primary GraphRAG Service (`:8080`)**: Built on [Axum](https://github.com/tokio-rs/axum) (`src/routes.rs`, `src/graph_rag.rs`) handling document ingestion, graph/vector storage, and RAG question answering.
+2. **Health Monitoring Sidecar (`:8079`)**: Powered by the [`hams`](https://github.com/PolecatWorks/hams) crate (`src/hams_tools.rs`) serving liveness, readiness, startup probes, Prometheus metrics, and graceful shutdown coordination.
 
-- **Web Framework:** Built on [Axum](https://github.com/tokio-rs/axum) with explicitly configured Tokio runtimes.
-- **Database Layer:** Utilizes PostgreSQL powered by `sqlx`. It heavily relies on **pgvector** for semantic similarity search and the **Apache AGE** extension for storing structural graph data and supporting OpenCypher queries.
-- **LLM Integration:** Leverages the [`rig-core`](https://github.com/0xPlaygrounds/rig) crate to interface seamlessly with LLM providers (including OpenAI and local models via Ollama) for text extraction and analysis.
-- **Configuration:** Employs [`figment`](https://github.com/SergioBenitez/Figment) for robust, layered configuration management.
-- **Health Monitoring:** Runs a dedicated Health Monitoring Sidecar (HaMS) on a separate port for liveness, readiness, and metrics.
+```mermaid
+flowchart LR
+    Client["HTTP Client / Robot Runner"]
+
+    subgraph "GraphRAG-RS Process"
+        subgraph "Primary Axum API (:8080)"
+            Hello["GET /hello"]
+            Ingest["POST /ingest"]
+            Query["POST /query"]
+            DeleteDoc["DELETE /documents/{id}"]
+        end
+
+        subgraph "HaMS Sidecar API (:8079)"
+            Alive["GET /hams/alive"]
+            Ready["GET /hams/ready"]
+            Startup["GET /hams/startup"]
+            Metrics["GET /hams/metrics"]
+            Version["GET /hams/version"]
+            Shutdown["GET /hams/shutdown"]
+        end
+
+        GraphStore["GraphStore\n(Chunker, Extractor, Community Summarizer)"]
+    end
+
+    Postgres[("PostgreSQL + pgvector\n(graph_documents, knowledge_objects, graph_tuples)")]
+    LLM["OpenAI-Compatible LLM\n(Ollama / OpenAI via rig-core)"]
+
+    Client --> Hello
+    Client --> Ingest
+    Client --> Query
+    Client --> DeleteDoc
+    Client --> Alive
+    Client --> Ready
+    Client --> Metrics
+
+    Ingest --> GraphStore
+    Query --> GraphStore
+    DeleteDoc --> GraphStore
+    GraphStore --> Postgres
+    GraphStore --> LLM
+```
+
+---
+
+## API Reference
+
+### Primary GraphRAG API (`:8080`)
+
+By default, the primary Axum service listens on `http://127.0.0.1:8080` (`server_host` and `server_port` in [config.yaml](./config.yaml)).
+
+| Method | Path | Success Status | Description |
+|---|---|---|---|
+| `GET` | `/hello` | `200 OK` | Basic connectivity and routing sanity check. |
+| `POST` | `/ingest` | `200 OK` | Chunks and ingests a Markdown document, extracts Knowledge Objects and Graph Tuples, updates Layer 1 community summaries, and persists to PostgreSQL (`pgvector`). |
+| `POST` | `/query` | `200 OK` | Executes 64-d `pgvector` similarity + keyword seed lookup, traverses up to 2 hops across the knowledge graph, and synthesizes a grounded answer via the configured LLM. |
+| `DELETE` | `/documents/{id}` | `204 No Content` | Deletes an ingested document and its associated Knowledge Objects and Graph Tuples. |
+
+---
+
+#### 1. `GET /hello`
+
+Verifies that the primary Axum HTTP listener is up and routing requests.
+
+- **Response (`200 OK`, `text/plain`)**:
+  ```text
+  Hello, World!
+  ```
+- **Example**:
+  ```bash
+  curl -i http://localhost:8080/hello
+  ```
+
+---
+
+#### 2. `POST /ingest`
+
+Ingests a raw Markdown document into the Graph RAG pipeline (`src/routes.rs`, `src/graph_rag.rs`):
+1. Splits the Markdown content by section headings (`#`, `##`, `###`) and paragraphs into bounded semantic chunks.
+2. Extracts **Knowledge Objects** (nodes with canonical `snake_case` IDs, labels, descriptions, and 64-d `pgvector` embeddings) and **Graph Tuples** (directed `(source, predicate, target)` edges).
+3. Idempotently merges extracted nodes and edges with existing graph knowledge and recomputes Layer 1 `CommunitySummary` nodes and `SUMMARIZES` hierarchy edges.
+4. Upserts the document, nodes, and edges into PostgreSQL (`graph_documents`, `knowledge_objects`, `graph_tuples`).
+
+- **Request Headers**: `Content-Type: application/json`
+- **Request Body (`IngestRequest`)**:
+  ```json
+  {
+    "filename": "04_michael_collins.md",
+    "content": "# Michael Collins (astronaut)\n\nMichael Collins flew the Apollo 11 command module Columbia around the Moon in 1969 while Neil Armstrong and Buzz Aldrin made the first crewed landing on the surface."
+  }
+  ```
+  | Field | Type | Required | Description |
+  |---|---|---|---|
+  | `filename` | `string` | Yes | Non-empty document filename used as the canonical `document_id`. |
+  | `content` | `string` | Yes | Non-empty raw Markdown content to chunk and extract. |
+
+- **Success Response (`200 OK`, `application/json`, `IngestResponse`)**:
+  ```json
+  {
+    "document_id": "04_michael_collins.md",
+    "chunks_processed": 1,
+    "nodes_extracted": 5,
+    "edges_extracted": 4
+  }
+  ```
+  | Field | Type | Description |
+  |---|---|---|
+  | `document_id` | `string` | Canonical identifier of the ingested document (matches normalized `filename`). |
+  | `chunks_processed` | `usize` | Number of semantic Markdown chunks processed. |
+  | `nodes_extracted` | `usize` | Number of unique Layer 0 Knowledge Objects extracted from the document. |
+  | `edges_extracted` | `usize` | Number of unique Graph Tuples extracted from the document. |
+
+- **Error Response (`400 Bad Request`, `application/json`, `ErrorResponse`)**:
+  Returned when `filename` or `content` is empty/whitespace.
+  ```json
+  {
+    "error": "markdown content must not be empty"
+  }
+  ```
+
+- **Example**:
+  ```bash
+  curl -X POST http://localhost:8080/ingest \
+    -H "Content-Type: application/json" \
+    -d '{
+      "filename": "04_michael_collins.md",
+      "content": "# Michael Collins (astronaut)\n\nMichael Collins flew the Apollo 11 command module Columbia in lunar orbit."
+    }'
+  ```
+
+---
+
+#### 3. `POST /query`
+
+Answers a single-hop or multi-hop natural-language question using the knowledge graph:
+1. Computes a 64-d query embedding and identifies top-K seed `KnowledgeObject` nodes via cosine similarity and keyword matching.
+2. Traverses up to 2 hops along outgoing and incoming `GraphTuple` edges to assemble the multi-hop subgraph context (`contexts`).
+3. Prompts the configured LLM via `rig-core` (with a deterministic Maximal Marginal Relevance fallback when offline) to synthesize a complete, grounded answer from the retrieved subgraph contexts.
+
+- **Request Headers**: `Content-Type: application/json`
+- **Request Body (`QueryRequest`)**:
+  ```json
+  {
+    "question": "Who flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon?"
+  }
+  ```
+  | Field | Type | Required | Description |
+  |---|---|---|---|
+  | `question` | `string` | Yes | Non-empty natural-language question to evaluate against the knowledge graph. |
+
+- **Success Response (`200 OK`, `application/json`, `QueryResponse`)**:
+  ```json
+  {
+    "answer": "Michael Collins flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon.",
+    "contexts": [
+      "michael_collins (DocumentSection): Michael Collins (October 31, 1930 – April 28, 2021) was an American astronaut who flew the Apollo 11 command module Columbia around the Moon in 1969...",
+      "command_module_columbia (Spacecraft): [Michael Collins] Michael Collins (October 31, 1930 – April 28, 2021) was an American astronaut who flew the Apollo 11 command module Columbia...",
+      "michael_collins -[MENTIONS]-> command_module_columbia"
+    ]
+  }
+  ```
+  | Field | Type | Description |
+  |---|---|---|
+  | `answer` | `string` | Grounded natural-language answer synthesized from the knowledge graph. |
+  | `contexts` | `string[]` | Retrieved node descriptions and relationship triples (`source -[PREDICATE]-> target`) used to ground the answer. |
+
+- **Error Response (`400 Bad Request`, `application/json`, `ErrorResponse`)**:
+  Returned when `question` is empty/whitespace.
+  ```json
+  {
+    "error": "question must not be empty"
+  }
+  ```
+
+- **Example**:
+  ```bash
+  curl -X POST http://localhost:8080/query \
+    -H "Content-Type: application/json" \
+    -d '{
+      "question": "Which Apollo 11 astronauts graduated from the United States Military Academy at West Point, and in what years did they graduate?"
+    }'
+  ```
+
+---
+
+#### 4. `DELETE /documents/{id}`
+
+Deletes an ingested document and removes its associated Knowledge Objects and Graph Tuples from both the in-memory graph and PostgreSQL (`graph_documents`, `knowledge_objects`, `graph_tuples`). Used by automated test suites during teardown to keep test runs isolated.
+
+- **Path Parameters**:
+  | Parameter | Type | Description |
+  |---|---|---|
+  | `id` | `string` | The `document_id` returned by `POST /ingest` (e.g., `04_michael_collins.md`). |
+
+- **Success Response (`204 No Content`)**: Empty body.
+- **Example**:
+  ```bash
+  curl -i -X DELETE http://localhost:8080/documents/04_michael_collins.md
+  ```
+
+---
+
+### Health Monitoring Sidecar (HaMS) API (`:8079`)
+
+The embedded HaMS sidecar listens on a dedicated port (`127.0.0.1:8079` by default, configured under `hams.address` in [config.yaml](./config.yaml)) and starts *before* database connections or the main Axum server are initialized.
+
+| Method | Path | Success Status | Description |
+|---|---|---|---|
+| `GET` | `/hams/alive` | `200 OK` | Liveness probe (`503 Service Unavailable` if unhealthy). |
+| `GET` | `/hams/alive_verbose` | `200 OK` | Verbose liveness probe with individual check details. |
+| `GET` | `/hams/ready` | `200 OK` | Readiness probe; returns `200 OK` once the `db-connected` manual signal is enabled after PostgreSQL + `pgvector` and `LlmClient` initialization (`503 Service Unavailable` while bootstrapping). |
+| `GET` | `/hams/ready_verbose` | `200 OK` | Verbose readiness probe showing the `db-connected` probe state. |
+| `GET` | `/hams/startup` | `200 OK` | Startup probe endpoint. |
+| `GET` | `/hams/startup_verbose` | `200 OK` | Verbose startup probe endpoint. |
+| `GET` | `/hams/version` | `200 OK` | Returns JSON metadata (`name`, `version`, `hams_name`, `hams_version`). |
+| `GET` | `/hams/metrics` | `200 OK` | Exposes Prometheus metrics (`text/plain; version=0.0.4`). |
+| `GET` | `/hams/shutdown` | `200 OK` | Triggers the `CancellationToken` shutdown callback to gracefully stop the main Axum server and HaMS sidecar. |
+
+- **Examples**:
+  ```bash
+  # Check liveness and readiness
+  curl -i http://localhost:8079/hams/alive
+  curl -i http://localhost:8079/hams/ready
+
+  # Inspect service version and Prometheus metrics
+  curl -s http://localhost:8079/hams/version
+  curl -s http://localhost:8079/hams/metrics
+  ```
+
+---
 
 ## Quickstart & Local Setup
 
-The core developer workflow is standardized around the `Makefile`. Before starting, ensure you have Rust, Cargo, and a local PostgreSQL instance (with pgvector and Apache AGE) running.
+The developer workflow is standardized around the root [Makefile](./Makefile). Ensure you have Rust, Cargo, a running PostgreSQL instance with `pgvector` enabled (`localhost:5432`), and an OpenAI-compatible LLM endpoint such as Ollama (`localhost:11434`).
 
 ### 1. Database Setup & Migrations
-First, ensure your database is running, and then apply all migrations:
+Create the `graphrag` database and apply all pending SQL migrations (`migrations/*.up.sql`):
 ```bash
 make migrate
 ```
-*This command will install `sqlx-cli` if it's missing, create the database, and run all pending migrations.*
 
 ### 2. Running the Development Server
-To start the backend server on the standard ports (8080 for Axum, 8079 for HaMS):
+Start the backend server on ports `8080` (Axum) and `8079` (HaMS) using `config.yaml`:
 ```bash
 make dev
 ```
-*Note: The `make dev` target automatically attempts to kill any stale processes holding ports 8080 or 8079 to prevent bind errors.*
+*Note: `make dev` runs `cargo run -- -c config.yaml` after freeing ports `8080` and `8079`.*
 
 ### 3. Hot-Reloading
-For rapid development, you can run the server with hot-reloading via `cargo watch`:
+Run the server with hot-reloading via `cargo watch`:
 ```bash
 make watch
+# or
+make aad-be-watch
 ```
-*(Requires `cargo-watch` installed: `cargo install cargo-watch`)*
+
+---
 
 ## Configuration
 
-The application uses `figment` for configuration management. Configuration is typically loaded from environment variables and configuration files (e.g., `AppConfig`). The Tokio runtime threads, stack size, and metrics interval are initialized centrally using these parameters rather than relying on default macros.
+Configuration is managed centrally via `AppConfig` (`src/config.rs`) using `figment` and validated fail-fast at startup:
+- **CLI Flag (`clap` Derive)**: Pass `-c <PATH>` or `--config <PATH>` (`src/cli.rs`).
+- **YAML Configuration**: See [config.yaml](./config.yaml) for the default local configuration.
+- **Environment Variable Overrides**: Any field in `AppConfig` can be overridden using the `GRAPHRAG_BE__` prefix with `__` nesting (for example, `GRAPHRAG_BE__DATABASE__URL`, `GRAPHRAG_BE__SERVER_PORT`, `GRAPHRAG_BE__LLM__MODEL`).
 
-Ensure the following essential environment variables are set in your local environment or `.env` file (e.g., `DATABASE_URL`).
+---
 
 ## Testing
 
-We focus heavily on rigorous automated testing in Rust.
-
-Run all unit and integration tests with:
+### 1. Rust Unit Tests (`make test`)
+Run all 49 unit and router tests across `cli`, `config`, `db`, `llm_tools`, `graph_rag`, and `routes`:
 ```bash
 make test
 ```
-*This will execute `cargo test` sequentially (`--test-threads=1`) and trigger local integration scripts if present.*
+
+### 2. End-to-End Robot Framework + Ragas Integration Tests (`make test-robot`)
+With the Graphrag server already running (`make dev` or `make watch`), execute the Robot Framework + **Ragas** integration test suites (`integration-tests/tests/`):
+```bash
+make test-robot
+```
+This runs [integration-tests/run-tests-local.sh](./integration-tests/run-tests-local.sh), which:
+1. Verifies HaMS probes (`/hams/alive`, `/hams/ready`, `/hams/metrics`) and `GET /hello` (`01_health_and_foundation.robot`).
+2. Loads all baseline Markdown documents from `tests/data/graph_rag_baseline/` via `POST /ingest`, executes single-hop and multi-hop questions via `POST /query`, evaluates AI responses with **Ragas** (`RagasEvalLibrary.py`), and cleans up ingested documents via `DELETE /documents/{id}` (`02_graph_rag_baseline.robot`).
+
+---
 
 ## Documentation & Guidelines
 
-This repository follows a strict documentation and development lifecycle.
-
-- **Product Requirements (PRDs):** See `spec/prds/` for high-level feature requirements and suite descriptions.
-- **Agent Instructions:** Refer to `AGENTS.md` for coding conventions, architectural guidelines, and programmatic checks. **If you are an AI assistant or human contributor, you must obey the instructions in `AGENTS.md`.**
-- **Domain Modeling:** We use Mermaid diagrams in markdown to describe domain concepts and system architecture.
+- **Product Requirements (PRDs):** See [spec/prds/README.md](./spec/prds/README.md) for product and architectural requirements.
+- **Technical Specifications (Specs):** See [spec/specs/README.md](./spec/specs/README.md) for TDD specifications (`01` through `15`).
+- **Research Notes:** See [spec/research/README.md](./spec/research/README.md) for background evaluations (including Ragas LLM response evaluation).
+- **Agent Instructions:** Refer to [AGENTS.md](./AGENTS.md) for workflow rules, configuration standards, and typed error handling (`thiserror`) requirements.
 
 ## Contributing
 
-We strictly adhere to a **Test-Driven Development (TDD)** implementation cycle.
-
-1. **Review PRDs:** Ensure any new feature is covered by a PRD in `spec/prds/`.
-2. **Derive Specs:** Technical specifications must be created from PRDs before coding begins.
-3. **Branch & Build:** Create a feature branch.
-4. **Pull Request:** Once implementation (with passing tests) is complete, commit your code, push to the remote branch, and create a Pull Request via GitHub.
+1. **Review PRDs:** Ensure any new feature is documented in [spec/prds/](./spec/prds/).
+2. **Derive Specs:** Author or update technical specifications in [spec/specs/](./spec/specs/) before coding.
+3. **Branch & Build (TDD):** Create a feature branch, write failing unit/integration tests first, and implement the feature.
+4. **Pull Request:** Run `make test` and `make test-robot`, push the feature branch, and open a Pull Request via `gh pr create`.
