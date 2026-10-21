@@ -1,0 +1,2 @@
+database:
+  url: {{ .Values.config.postgres_url | quote }}

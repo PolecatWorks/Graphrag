@@ -1,0 +1,23 @@
+name: Helm CI (PR)
+
+on:
+  pull_request:
+    paths:
+      - 'charts/graphrag/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Helm
+        uses: azure/setup-helm@v4.2.0
+      - name: Helm Lint
+        run: helm lint charts/graphrag
+
+  success-gate:
+    name: Helm CI Success
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Helm CI PR checks passed."

@@ -1,0 +1,7 @@
+target/
+.git/
+.github/
+integration-tests/
+tests/
+spec/
+!target/release/app

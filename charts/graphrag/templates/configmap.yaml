@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "graphrag.fullname" . }}-config
+  labels:
+    {{- include "graphrag.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+{{ tpl (.Files.Get "configs/config.yaml") . | indent 4 }}

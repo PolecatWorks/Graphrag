@@ -1,0 +1,107 @@
+project:
+  name: graphrag
+  environments:
+    - name: local
+      variables:
+        namespace: graphrag-${local.env.USER}
+    - name: pr
+      variables:
+        namespace: graphrag-pr-${var.pr-number}
+        graphrag-image: "ghcr.io/polecatworks/graphrag"
+        graphrag-tag: "latest"
+  defaultEnvironment: local
+
+providers:
+  - name: kubernetes
+    environments:
+      - name: local
+      - name: pr
+
+---
+kind: Build
+name: get-be-sha
+type: exec
+spec:
+  command:
+    - sh
+    - -c
+    - "git rev-parse HEAD > commit_sha.txt"
+
+---
+kind: Deploy
+name: ghcr-external-secret
+type: kubernetes
+spec:
+  manifests:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ghcr-secret
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: e30=
+
+---
+kind: Deploy
+name: postgres-test
+type: kubernetes
+spec:
+  manifests:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: postgres-test
+        labels:
+          app: postgres-test
+      spec:
+        containers:
+          - name: postgres
+            image: pgvector/pgvector:pg16
+            env:
+              - name: POSTGRES_USER
+                value: postgres
+              - name: POSTGRES_PASSWORD
+                value: postgres
+              - name: POSTGRES_DB
+                value: graphrag
+            ports:
+              - containerPort: 5432
+            volumeMounts:
+              - name: init-sql
+                mountPath: /docker-entrypoint-initdb.d/init.sql
+                subPath: init.sql
+        volumes:
+          - name: init-sql
+            configMap:
+              name: postgres-init
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: postgres-init
+      data:
+        init.sql: |
+          CREATE EXTENSION IF NOT EXISTS vector;
+    - apiVersion: v1
+      kind: Service
+      metadata:
+        name: postgres-test
+      spec:
+        ports:
+          - port: 5432
+            targetPort: 5432
+        selector:
+          app: postgres-test
+
+---
+kind: Deploy
+name: graphrag
+type: helm
+dependencies:
+  - postgres-test
+spec:
+  chart:
+    path: charts/graphrag
+  values:
+    image:
+      repository: ${var.graphrag-image}
+      tag: ${var.graphrag-tag}

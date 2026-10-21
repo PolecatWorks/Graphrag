@@ -1,0 +1,79 @@
+name: Integration Test
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  merge_group:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: polecatworks-runner
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve Image Tag
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "tag=main" >> $GITHUB_OUTPUT
+          else
+            CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile)
+            echo "tag=sha-$CONTENT_SHA" >> $GITHUB_OUTPUT
+          fi
+      - name: Wait for image
+        run: |
+          TAG=${{ steps.resolve.outputs.tag }}
+          echo "Waiting for ghcr.io/polecatworks/graphrag:$TAG"
+          for i in {1..180}; do
+            if docker manifest inspect ghcr.io/polecatworks/graphrag:$TAG > /dev/null 2>&1; then
+              echo "Image found."
+              break
+            fi
+            echo "Waiting 10s..."
+            sleep 10
+            if [ $i -eq 180 ]; then
+              echo "Timeout waiting for image."
+              exit 1
+            fi
+          done
+      - name: Setup namespace and secrets
+        run: |
+          NS=graphrag-pr-${{ github.event.pull_request.number || github.run_id }}
+          echo "namespace=$NS" >> $GITHUB_OUTPUT
+          kubectl create namespace $NS || true
+      - name: Garden Test
+        run: |
+          NS=graphrag-pr-${{ github.event.pull_request.number || github.run_id }}
+          garden test --env pr --var graphrag-image=ghcr.io/polecatworks/graphrag --var graphrag-tag=${{ steps.resolve.outputs.tag }} --var pr-number=${{ github.event.pull_request.number || github.run_id }}
+      - name: Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-test-results-pr-${{ github.event.pull_request.number || github.run_id }}
+          path: ./integration-tests/reports
+          retention-days: 7
+      - name: Publish to gh-pages
+        if: always()
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages || true
+          git checkout -b gh-pages origin/gh-pages || git checkout --orphan gh-pages
+          mkdir -p pr/${{ github.event.pull_request.number || github.run_id }}
+          cp -r ./integration-tests/reports/* pr/${{ github.event.pull_request.number || github.run_id }}/
+          git add pr/${{ github.event.pull_request.number || github.run_id }}
+          git commit -m "Deploy robot reports for PR ${{ github.event.pull_request.number || github.run_id }}" || true
+          git push origin gh-pages
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body "Integration test report: https://polecatworks.github.io/graphrag/pr/${{ github.event.pull_request.number }}/log.html"
+      - name: Teardown Namespace
+        if: always()
+        run: |
+          NS=graphrag-pr-${{ github.event.pull_request.number || github.run_id }}
+          garden cleanup namespace --env pr || true
+          kubectl delete namespace $NS --ignore-not-found

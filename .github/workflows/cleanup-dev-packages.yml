@@ -1,0 +1,19 @@
+name: Cleanup Dev Packages
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean up old graphrag images
+        uses: snok/container-retention-policy@v2.2.1
+        with:
+          image-names: graphrag, graphrag/helm/graphrag
+          cut-off: 2 weeks ago UTC
+          keep-at-least: 3
+          skip-tags: main, latest, *.*.*, v*.*.*
+          account-type: personal
+          token: ${{ secrets.GITHUB_TOKEN }}

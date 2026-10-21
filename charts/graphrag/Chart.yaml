@@ -1,0 +1,6 @@
+apiVersion: v2
+name: graphrag
+description: A Helm chart for Graph RAG application
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

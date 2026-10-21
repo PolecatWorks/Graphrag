@@ -281,6 +281,27 @@ make watch
 make aad-be-watch
 ```
 
+### 4. Container & Kubernetes Workflows
+Build the multi-architecture Docker image locally:
+```bash
+make build-docker
+```
+
+Run the Docker image locally mapping ports 8080 and 8079:
+```bash
+make docker-run
+```
+
+Deploy the Graphrag Helm chart (`charts/graphrag`) using Garden to your local Kubernetes context:
+```bash
+make garden-up
+```
+
+Run the ephemeral Kubernetes integration test suite (Robot Framework + Ragas) inside the local Garden environment:
+```bash
+make garden-test
+```
+
 ---
 
 ## Configuration
