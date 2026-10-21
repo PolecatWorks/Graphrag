@@ -41,7 +41,11 @@ jobs:
         run: |
           NS=graphrag-pr-${{ github.event.pull_request.number || github.run_id }}
           echo "namespace=$NS" >> $GITHUB_OUTPUT
-          kubectl create namespace $NS || true
+          if command -v kubectl >/dev/null 2>&1; then
+            kubectl create namespace $NS || true
+          else
+            echo "kubectl CLI not found, skipping namespace creation."
+          fi
       - name: Garden Test
         run: |
           NS=graphrag-pr-${{ github.event.pull_request.number || github.run_id }}
@@ -90,4 +94,6 @@ jobs:
           if command -v garden >/dev/null 2>&1; then
             garden cleanup namespace --env pr || true
           fi
-          kubectl delete namespace $NS --ignore-not-found || true
+          if command -v kubectl >/dev/null 2>&1; then
+            kubectl delete namespace $NS --ignore-not-found || true
+          fi
