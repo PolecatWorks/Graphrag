@@ -11,7 +11,7 @@ jobs:
   test:
     runs-on: polecatworks-runner
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - name: Resolve Image Tag
         id: resolve
         run: |

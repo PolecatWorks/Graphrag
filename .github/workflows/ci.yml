@@ -11,7 +11,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       helm: ${{ steps.filter.outputs.helm }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -44,7 +44,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo check
@@ -58,7 +58,7 @@ jobs:
     if: ${{ needs.detect-changes.outputs.helm == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - name: Set up Helm
         uses: azure/setup-helm@v4.2.0
       - name: Run helm lint
