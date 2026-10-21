@@ -78,7 +78,6 @@ jobs:
           context: .
           push: true
           platforms: linux/${{ matrix.arch }}
-          tags: ghcr.io/polecatworks/graphrag:buildcache-linux-${{ matrix.arch }}
           cache-from: type=registry,ref=ghcr.io/polecatworks/graphrag:buildcache-linux-${{ matrix.arch }}
           cache-to: type=registry,ref=ghcr.io/polecatworks/graphrag:buildcache-linux-${{ matrix.arch }},mode=max
           outputs: type=image,name=ghcr.io/polecatworks/graphrag,push-by-digest=true,name-canonical=true
