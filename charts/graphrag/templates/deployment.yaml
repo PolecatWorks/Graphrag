@@ -1,3 +1,4 @@
+{{- $configsha := substr 0 8 ((include "graphrag.config" . ) | sha256sum) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -11,13 +12,26 @@ spec:
       {{- include "graphrag.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ $configsha }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       labels:
         {{- include "graphrag.selectorLabels" . | nindent 8 }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.env }}
+          env:
+            {{- include "graphrag.env" . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.container.port }}
@@ -41,9 +55,15 @@ spec:
             - name: config-volume
               mountPath: /app/config.yaml
               subPath: config.yaml
+            {{- if .Values.volumeMounts }}
+            {{- include "graphrag.volumeMounts" . | nindent 12 }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
         - name: config-volume
           configMap:
             name: {{ include "graphrag.fullname" . }}-config
+        {{- if .Values.volumes }}
+        {{- include "graphrag.volumes" . | nindent 8 }}
+        {{- end }}

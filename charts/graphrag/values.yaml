@@ -1,21 +1,15 @@
+imagePullSecrets: []
+replicaCount: 1
+
 image:
   repository: ghcr.io/polecatworks/graphrag
   pullPolicy: IfNotPresent
   tag: "latest"
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-serviceAccount:
-  create: true
-  annotations: {}
-  name: ""
-
 podAnnotations: {}
-podSecurityContext: {}
-
-securityContext: {}
 
 container:
   port: 8080
@@ -34,15 +28,8 @@ resources:
     cpu: 500m
     memory: 512Mi
 
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+env: []
+volumeMounts: []
+volumes: []
 
-nodeSelector: {}
-tolerations: []
-affinity: {}
-
-config:
-  postgres_url: "postgres://postgres:postgres@postgres-test:5432/graphrag"
+config: {}

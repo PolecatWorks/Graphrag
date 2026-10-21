@@ -2,40 +2,47 @@ name: CI
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   detect-changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       helm: ${{ steps.filter.outputs.helm }}
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          ref: ${{ github.event.merge_group.base_ref || github.ref }}
           filters: |
             backend:
               - 'src/**'
               - 'migrations/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
+              - 'config.yaml'
+              - 'Makefile'
+              - 'Dockerfile'
+              - '.github/workflows/ci.yml'
             helm:
-              - 'charts/graphrag/**'
+              - 'charts/**'
+              - '.github/workflows/ci.yml'
 
   backend-test:
     name: Build & Test Backend
     needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.backend == 'true' }}
+    if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
         image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: graphrag_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: graphrag_db
         ports:
           - 5432:5432
         options: >-
@@ -44,22 +51,32 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4.2.2
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Run cargo check
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run Cargo Check
         run: cargo check
-      - name: Run cargo test
+
+      - name: Run Backend Tests
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/graphrag_db
         run: cargo test -- --test-threads=1
 
   helm-lint:
     name: Helm Chart Lint
     needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.helm == 'true' }}
+    if: needs.detect-changes.outputs.helm == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
+
       - name: Set up Helm
-        uses: azure/setup-helm@v4.2.0
-      - name: Run helm lint
+        uses: azure/setup-helm@v4
+
+      - name: Lint Helm Charts
         run: helm lint charts/graphrag
