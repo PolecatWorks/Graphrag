@@ -199,3 +199,7 @@ sequenceDiagram
   1. Exercise **Browse, Read, Edit, Add, Delete** across `/documents`, `/nodes`, `/edges`, and `/communities`.
   2. Verify that adding or editing nodes/edges via the BREAD API immediately reflects in subsequent `POST /query` answers graded by **Ragas** (`RagasEvalLibrary.py`).
   3. Verify that deleting nodes/edges/documents returns `404 Not Found` on subsequent reads and cleans up all test artifacts in `[Teardown]`.
+
+### 5. Model Context Protocol (MCP) Parity
+- All BREAD operations defined in this PRD are also exposed as structured MCP tools (`document_*`, `node_*`, `edge_*`, `community_*`) over HTTP JSON-RPC 2.0 (`POST /mcp`, `POST /api/v1/mcp`). See the **[Graph RAG MCP Service PRD](./graph-rag-mcp-prd.md)** for the MCP tool router specification.
+

@@ -99,6 +99,14 @@ flowchart TD
 - **Communities (`/communities`):** Browse, Read, Edit, Rebuild (`POST /communities/rebuild`), and Delete Layer 1+ hierarchical community summaries.
 - See the dedicated **[Graph RAG Data Management (BREAD API) PRD](./graph-rag-api-bread-prd.md)** for full resource schemas, status codes, and cascading synchronization rules.
 
+### 6. Model Context Protocol (MCP) Service Exposure
+**Objective:** Expose GraphRAG-RS pipeline and BREAD capabilities to AI agents, IDEs, and desktop assistants via the **Model Context Protocol (MCP)** over HTTP JSON-RPC 2.0 (`POST /mcp` and `POST /api/v1/mcp`), following the patterns established in `aad-mcp-container`:
+- **`rmcp` + `schemars` Tool Router:** Auto-generated Draft-07 JSON Schemas via `#[tool_router]` and `#[tool]` macros.
+- **Baseline & Pipeline Tools:** `hello`, `graphrag_ingest`, and `graphrag_query`.
+- **Full BREAD MCP Tools:** `document_*`, `node_*`, `edge_*`, and `community_*` tools operating directly against the in-process `GraphStore`.
+- See the dedicated **[Graph RAG MCP Service PRD](./graph-rag-mcp-prd.md)** for full protocol lifecycle diagrams, tool schemas, and error contracts.
+
 ## Future Considerations
 - Implementing a specialized Query Router LLM that decides whether an incoming user query requires a local search (Layer 0 nodes), a global search (Community Summaries), or a hybrid approach.
+
 
