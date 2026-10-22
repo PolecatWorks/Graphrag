@@ -1522,7 +1522,7 @@ impl GraphStore {
         if norm_p.is_empty() { return Err(GraphRagError::EmptyPredicate); }
 
         if !auto_create_nodes {
-            let s_exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
+            let s_exists: Option<i32> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
                 .bind(&norm_s)
                 .fetch_optional(pool)
                 .await?;
@@ -1530,7 +1530,7 @@ impl GraphStore {
                 return Err(GraphRagError::NodeNotFound(norm_s));
             }
 
-            let t_exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
+            let t_exists: Option<i32> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
                 .bind(&norm_t)
                 .fetch_optional(pool)
                 .await?;
@@ -1538,7 +1538,7 @@ impl GraphStore {
                 return Err(GraphRagError::NodeNotFound(norm_t));
             }
         } else {
-            let s_exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
+            let s_exists: Option<i32> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
                 .bind(&norm_s)
                 .fetch_optional(pool)
                 .await?;
@@ -1553,7 +1553,7 @@ impl GraphStore {
                 }).await?;
             }
 
-            let t_exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
+            let t_exists: Option<i32> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
                 .bind(&norm_t)
                 .fetch_optional(pool)
                 .await?;

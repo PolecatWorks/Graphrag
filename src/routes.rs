@@ -365,6 +365,51 @@ mod tests {
     use std::sync::Arc;
     use tower::ServiceExt; // for `oneshot`
 
+    async fn get_test_app_state() -> AppState {
+        let db_url = std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://postgres:mysecretpassword@localhost:5432/graphrag".to_string());
+
+        let pool = match sqlx::postgres::PgPoolOptions::new()
+            .max_connections(5)
+            .acquire_timeout(std::time::Duration::from_secs(2))
+            .connect(&db_url)
+            .await
+        {
+            Ok(p) => {
+                let _ = sqlx::migrate!("./migrations").run(&p).await;
+                p
+            }
+            Err(_) => sqlx::postgres::PgPoolOptions::new()
+                .connect_lazy("postgres://mock:mock@localhost/mock")
+                .unwrap(),
+        };
+
+        let config = Arc::new(AppConfig {
+            database: DatabaseConfig {
+                url: db_url,
+                pool_size: 1,
+                timeout_seconds: 1,
+            },
+            server_host: "127.0.0.1".to_string(),
+            server_port: 8080,
+            hams: hams::hams::config::HamsConfig::default(),
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                base_url: "http://127.0.0.1:1/v1".to_string(),
+                api_key: None,
+                model: "llama3".to_string(),
+                timeout_seconds: 1,
+            },
+        });
+
+        AppState {
+            pool,
+            config: config.clone(),
+            llm: Arc::new(crate::llm_tools::LlmClient::new(&config.llm).unwrap()),
+            graph_store: GraphStore::default(),
+        }
+    }
+
     fn mock_app_state() -> AppState {
         let pool = sqlx::postgres::PgPoolOptions::new()
             .connect_lazy("postgres://mock:mock@localhost/mock")
@@ -597,5 +642,454 @@ mod tests {
             "Expected 1951 and 1952 in answer, got: {}",
             j3.answer
         );
+    }
+
+    #[tokio::test]
+    async fn test_bread_document_endpoints() {
+        let state = get_test_app_state().await;
+
+        // 1. POST /documents (Add)
+        let app = create_router().with_state(state.clone());
+        let add_payload = serde_json::to_vec(&IngestRequest {
+            filename: "test_doc.md".to_string(),
+            content: "# Test Title\nTest content for BREAD document.".to_string(),
+        })
+        .unwrap();
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/documents")
+                    .header("content-type", "application/json")
+                    .body(Body::from(add_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // 2. GET /documents (Browse)
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/documents?limit=10")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 3. GET /documents/{id} (Read)
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/documents/test_doc.md")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 4. PUT /documents/{id} (Edit)
+        let app = create_router().with_state(state.clone());
+        let edit_payload = serde_json::to_vec(&DocumentEditRequest {
+            content: Some("# Test Title Updated\nUpdated content.".to_string()),
+            filename: None,
+            re_extract: false,
+        })
+        .unwrap();
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/documents/test_doc.md")
+                    .header("content-type", "application/json")
+                    .body(Body::from(edit_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 5. DELETE /documents/{id} (Delete)
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/documents/test_doc.md")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        // Verify 404 after deletion
+        let app = create_router().with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/documents/test_doc.md")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_bread_node_endpoints() {
+        let state = get_test_app_state().await;
+
+        // 1. POST /nodes (Add)
+        let app = create_router().with_state(state.clone());
+        let node_payload = serde_json::to_vec(&KnowledgeObject {
+            id: "test_astronaut".to_string(),
+            label: "Astronaut".to_string(),
+            description: "Test astronaut description".to_string(),
+            layer: 0,
+            document_id: None,
+            embedding: vec![],
+        })
+        .unwrap();
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/nodes")
+                    .header("content-type", "application/json")
+                    .body(Body::from(node_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // 2. GET /nodes (Browse)
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/nodes?limit=10")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 3. GET /nodes/{id} (Read)
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/nodes/test_astronaut")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 4. PUT /nodes/{id} (Edit)
+        let app = create_router().with_state(state.clone());
+        let edit_payload = serde_json::to_vec(&NodeEditRequest {
+            label: Some("Commander".to_string()),
+            description: Some("Updated astronaut description".to_string()),
+            layer: None,
+            document_id: None,
+        })
+        .unwrap();
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/nodes/test_astronaut")
+                    .header("content-type", "application/json")
+                    .body(Body::from(edit_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 5. DELETE /nodes/{id} (Delete)
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/nodes/test_astronaut")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        // 6. 404 after delete
+        let app = create_router().with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/nodes/test_astronaut")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_bread_edge_endpoints() {
+        let state = get_test_app_state().await;
+
+        // 1. POST /edges with auto_create_nodes (Add)
+        let app = create_router().with_state(state.clone());
+        let edge_payload = serde_json::to_vec(&AddEdgeRequest {
+            edge: GraphTuple {
+                source: "node_a".to_string(),
+                predicate: "CONNECTED_TO".to_string(),
+                target: "node_b".to_string(),
+                document_id: None,
+            },
+            auto_create_nodes: true,
+        })
+        .unwrap();
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/edges")
+                    .header("content-type", "application/json")
+                    .body(Body::from(edge_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = resp.status();
+        let body_bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body_str = String::from_utf8_lossy(&body_bytes);
+        assert_eq!(status, StatusCode::CREATED, "Error body: {}", body_str);
+
+        // 2. GET /edges (Browse)
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/edges?limit=10")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 3. GET /edges/{source}/{predicate}/{target} (Read)
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/edges/node_a/CONNECTED_TO/node_b")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 4. PUT /edges/{source}/{predicate}/{target} (Edit)
+        let app = create_router().with_state(state.clone());
+        let edit_payload = serde_json::to_vec(&EdgeEditRequest {
+            predicate: Some("LINKED_WITH".to_string()),
+            target: None,
+            document_id: None,
+        })
+        .unwrap();
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/edges/node_a/CONNECTED_TO/node_b")
+                    .header("content-type", "application/json")
+                    .body(Body::from(edit_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 5. DELETE /edges/{source}/{predicate}/{target} (Delete)
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/edges/node_a/LINKED_WITH/node_b")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        // 6. 404 after delete
+        let app = create_router().with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/edges/node_a/LINKED_WITH/node_b")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_bread_community_endpoints() {
+        let state = get_test_app_state().await;
+
+        // 1. Add nodes and edge
+        {
+            let mut guard = state.graph_store.memory.write().await;
+            guard.nodes.insert(
+                "c_node_1".to_string(),
+                KnowledgeObject {
+                    id: "c_node_1".to_string(),
+                    label: "Entity".to_string(),
+                    description: "Community member 1".to_string(),
+                    layer: 0,
+                    document_id: None,
+                    embedding: vec![0.1; 64],
+                },
+            );
+            guard.nodes.insert(
+                "c_node_2".to_string(),
+                KnowledgeObject {
+                    id: "c_node_2".to_string(),
+                    label: "Entity".to_string(),
+                    description: "Community member 2".to_string(),
+                    layer: 0,
+                    document_id: None,
+                    embedding: vec![0.1; 64],
+                },
+            );
+            guard.edges.insert(GraphTuple {
+                source: "c_node_1".to_string(),
+                predicate: "RELATES_TO".to_string(),
+                target: "c_node_2".to_string(),
+                document_id: None,
+            });
+        }
+
+        // 2. POST /communities/rebuild
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/communities/rebuild")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 3. GET /communities
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/communities?limit=10")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 4. GET /communities/{id}
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/communities/community_1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 5. PUT /communities/{id}
+        let app = create_router().with_state(state.clone());
+        let edit_payload = serde_json::to_vec(&CommunityEditRequest {
+            description: Some("Manually updated community summary".to_string()),
+        })
+        .unwrap();
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/communities/community_1")
+                    .header("content-type", "application/json")
+                    .body(Body::from(edit_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 6. DELETE /communities/{id}
+        let app = create_router().with_state(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/communities/community_1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        // 7. Verify 404
+        let app = create_router().with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/communities/community_1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }
