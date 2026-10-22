@@ -26,6 +26,20 @@ pub enum GraphRagError {
     Llm(#[from] LlmError),
     #[error("database query failed: {0}")]
     Database(#[from] sqlx::Error),
+    #[error("document not found: {0}")]
+    DocumentNotFound(String),
+    #[error("node not found: {0}")]
+    NodeNotFound(String),
+    #[error("edge not found: {0}->{1}->{2}")]
+    EdgeNotFound(String, String, String),
+    #[error("community not found: {0}")]
+    CommunityNotFound(String),
+    #[error("node label must not be empty")]
+    EmptyNodeLabel,
+    #[error("node id must not be empty")]
+    EmptyNodeId,
+    #[error("predicate must not be empty")]
+    EmptyPredicate,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -56,6 +70,29 @@ pub struct ExtractionResult {
     pub nodes: Vec<KnowledgeObject>,
     #[serde(default)]
     pub edges: Vec<GraphTuple>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentMetadata {
+    pub id: String,
+    pub filename: String,
+    pub content: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentReadResponse {
+    pub document: DocumentMetadata,
+    pub extracted_nodes: Vec<String>,
+    pub extracted_edges: Vec<GraphTuple>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaginatedResponse<T> {
+    pub items: Vec<T>,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -650,6 +687,1255 @@ pub fn traverse_multi_hop(
 }
 
 impl GraphStore {
+    pub async fn browse_documents(
+        &self,
+        pool: &PgPool,
+        query: Option<&str>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<PaginatedResponse<DocumentMetadata>, GraphRagError> {
+        #[derive(sqlx::FromRow)]
+        struct DocRowSearch {
+            id: String,
+            filename: String,
+            content: String,
+            updated_at_text: Option<String>,
+            total_count: Option<i64>,
+        }
+
+        let rows = if let Some(q) = query {
+            let search = format!("%{}%", q);
+
+            let res: Vec<DocRowSearch> = sqlx::query_as(
+                "SELECT id, filename, content, updated_at::TEXT as updated_at_text, count(*) OVER() as total_count
+                 FROM graph_documents
+                 WHERE filename ILIKE $1
+                 ORDER BY id ASC LIMIT $2 OFFSET $3"
+            )
+            .bind(search)
+            .bind(limit as i64)
+            .bind(offset as i64)
+            .fetch_all(pool)
+            .await?;
+            res
+        } else {
+            let res: Vec<DocRowSearch> = sqlx::query_as(
+                "SELECT id, filename, content, updated_at::TEXT as updated_at_text, count(*) OVER() as total_count
+                 FROM graph_documents
+                 ORDER BY id ASC LIMIT $1 OFFSET $2"
+            )
+            .bind(limit as i64)
+            .bind(offset as i64)
+            .fetch_all(pool)
+            .await?;
+            res
+        };
+
+        let mut items = Vec::new();
+        let mut total = 0;
+        for row in rows {
+            if total == 0 {
+                total = row.total_count.unwrap_or(0) as usize;
+            }
+            items.push(DocumentMetadata {
+                id: row.id,
+                filename: row.filename,
+                content: row.content,
+                updated_at: row.updated_at_text.unwrap_or_default(),
+            });
+        }
+
+        Ok(PaginatedResponse {
+            items,
+            total,
+            limit,
+            offset,
+        })
+    }
+
+    pub async fn read_document(
+        &self,
+        pool: &PgPool,
+        id: &str,
+    ) -> Result<DocumentReadResponse, GraphRagError> {
+        #[derive(sqlx::FromRow)]
+        struct DocRowId {
+            id: String,
+            filename: String,
+            content: String,
+            updated_at_text: Option<String>,
+        }
+        let row: Option<DocRowId> = sqlx::query_as(
+            "SELECT id, filename, content, updated_at::TEXT as updated_at_text
+             FROM graph_documents WHERE id = $1"
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(r) = row {
+            let doc = DocumentMetadata {
+                id: r.id.clone(),
+                filename: r.filename,
+                content: r.content,
+                updated_at: r.updated_at_text.unwrap_or_default(),
+            };
+
+            let extracted_nodes: Vec<String> = sqlx::query_scalar("SELECT id FROM knowledge_objects WHERE document_id = $1")
+                .bind(id)
+                .fetch_all(pool)
+                .await?;
+
+            #[derive(sqlx::FromRow)]
+            struct EdgeRow {
+                source_id: String,
+                predicate: String,
+                target_id: String,
+            }
+
+            let edges_res: Vec<EdgeRow> = sqlx::query_as(
+                "SELECT source_id, predicate, target_id FROM graph_tuples WHERE document_id = $1"
+            )
+            .bind(id)
+            .fetch_all(pool)
+            .await?;
+            let extracted_edges = edges_res
+                .into_iter()
+                .map(|e| GraphTuple {
+                    source: e.source_id,
+                    predicate: e.predicate,
+                    target: e.target_id,
+                    document_id: Some(id.to_string()),
+                })
+                .collect();
+
+            Ok(DocumentReadResponse {
+                document: doc,
+                extracted_nodes,
+                extracted_edges,
+            })
+        } else {
+            Err(GraphRagError::DocumentNotFound(id.to_string()))
+        }
+    }
+
+    pub async fn edit_document(
+        &self,
+        pool: &PgPool,
+        _llm: &LlmClient,
+        id: &str,
+        new_content: Option<&str>,
+        new_filename: Option<&str>,
+        re_extract: bool,
+    ) -> Result<(), GraphRagError> {
+        let mut tx = pool.begin().await?;
+
+        #[derive(sqlx::FromRow)]
+        struct DocRow {
+            filename: String,
+            content: String,
+        }
+        let doc: Option<DocRow> = sqlx::query_as("SELECT filename, content FROM graph_documents WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+        let doc = doc.ok_or_else(|| GraphRagError::DocumentNotFound(id.to_string()))?;
+
+        let content_to_use = new_content.unwrap_or(&doc.content);
+        let filename_to_use = new_filename.unwrap_or(&doc.filename);
+
+        sqlx::query(
+            "UPDATE graph_documents SET content = $1, filename = $2, updated_at = NOW() WHERE id = $3"
+        )
+        .bind(content_to_use)
+        .bind(filename_to_use)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+        if re_extract && new_content.is_some() {
+            sqlx::query("DELETE FROM graph_tuples WHERE document_id = $1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("DELETE FROM knowledge_objects WHERE document_id = $1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+
+            tx.commit().await?;
+
+            let chunks = chunk_markdown(content_to_use, DEFAULT_MAX_CHUNK_CHARS)?;
+            let mut batches = Vec::new();
+            for chunk in &chunks {
+                batches.push(extract_heuristic_from_markdown(chunk, id));
+            }
+            let merged = merge_extractions(batches);
+
+            let all_nodes_and_summaries = {
+                let mut guard = self.memory.write().await;
+                guard.documents.insert(id.to_string(), content_to_use.to_string());
+
+                let existing_layer0 = ExtractionResult {
+                    nodes: guard.nodes.values().filter(|n| n.layer == 0).cloned().collect(),
+                    edges: guard.edges.iter().filter(|e| e.predicate != "SUMMARIZES").cloned().collect(),
+                };
+
+                let combined_layer0 = merge_extractions(vec![existing_layer0, merged]);
+                let summaries = build_hierarchical_summaries(&combined_layer0.nodes, &combined_layer0.edges);
+
+                guard.nodes.clear();
+                for n in &combined_layer0.nodes {
+                    guard.nodes.insert(n.id.clone(), n.clone());
+                }
+                for s in summaries.nodes {
+                    guard.nodes.insert(s.id.clone(), s.clone());
+                }
+                guard.edges.clear();
+                for e in &combined_layer0.edges {
+                    guard.edges.insert(e.clone());
+                }
+
+                ExtractionResult {
+                    nodes: guard.nodes.values().cloned().collect(),
+                    edges: guard.edges.iter().cloned().collect(),
+                }
+            };
+
+            let all_nodes = &all_nodes_and_summaries.nodes;
+            let all_edges = &all_nodes_and_summaries.edges;
+
+            for node in all_nodes {
+                let emb_str = format_pgvector(&node.embedding);
+                sqlx::query(
+                    "INSERT INTO knowledge_objects (id, label, description, layer, document_id, embedding, updated_at)
+                     VALUES ($1, $2, $3, $4, $5, $6::vector, NOW())
+                     ON CONFLICT (id) DO UPDATE SET
+                        label = EXCLUDED.label,
+                        description = EXCLUDED.description,
+                        layer = EXCLUDED.layer,
+                        document_id = EXCLUDED.document_id,
+                        embedding = EXCLUDED.embedding,
+                        updated_at = NOW()"
+                )
+                .bind(&node.id)
+                .bind(&node.label)
+                .bind(&node.description)
+                .bind(node.layer)
+                .bind(&node.document_id)
+                .bind(&emb_str)
+                .execute(pool)
+                .await?;
+            }
+
+            for edge in all_edges {
+                sqlx::query(
+                    "INSERT INTO graph_tuples (source_id, predicate, target_id, document_id, updated_at)
+                     VALUES ($1, $2, $3, $4, NOW())
+                     ON CONFLICT (source_id, predicate, target_id) DO UPDATE SET
+                        document_id = EXCLUDED.document_id,
+                        updated_at = NOW()"
+                )
+                .bind(&edge.source)
+                .bind(&edge.predicate)
+                .bind(&edge.target)
+                .bind(&edge.document_id)
+                .execute(pool)
+                .await?;
+            }
+        } else {
+            tx.commit().await?;
+            if let Some(c) = new_content {
+                let mut guard = self.memory.write().await;
+                guard.documents.insert(id.to_string(), c.to_string());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn browse_nodes(
+        &self,
+        pool: &PgPool,
+        label: Option<&str>,
+        layer: Option<i32>,
+        document_id: Option<&str>,
+        query: Option<&str>,
+        semantic_query: Option<&str>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<PaginatedResponse<KnowledgeObject>, GraphRagError> {
+        let mut conditions = Vec::new();
+        let mut binds: Vec<String> = Vec::new();
+        let mut bind_idx = 1;
+
+        if let Some(l) = label {
+            conditions.push(format!("label = ${}", bind_idx));
+            binds.push(l.to_string());
+            bind_idx += 1;
+        }
+
+        if let Some(ly) = layer {
+            conditions.push(format!("layer = ${}", bind_idx));
+            binds.push(ly.to_string());
+            bind_idx += 1;
+        }
+
+        if let Some(d) = document_id {
+            conditions.push(format!("document_id = ${}", bind_idx));
+            binds.push(d.to_string());
+            bind_idx += 1;
+        }
+
+        if let Some(q) = query {
+            conditions.push(format!("id ILIKE ${}", bind_idx));
+            binds.push(format!("%{}%", q));
+            bind_idx += 1;
+        }
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", conditions.join(" AND "))
+        };
+
+        let mut order_clause = "ORDER BY id ASC".to_string();
+
+        if let Some(sq) = semantic_query {
+            let sq_emb = compute_embedding_64d(sq);
+            let emb_str = format_pgvector(&sq_emb);
+            order_clause = format!("ORDER BY embedding <=> '{}'::vector ASC", emb_str);
+        }
+
+        let query_str = format!(
+            "SELECT id, label, description, layer, document_id, embedding::TEXT as emb_text, count(*) OVER() as total_count
+             FROM knowledge_objects
+             {}
+             {}
+             LIMIT ${} OFFSET ${}",
+            where_clause, order_clause, bind_idx, bind_idx + 1
+        );
+
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(query_str.as_str()));
+        for b in &binds {
+            q = q.bind(b);
+        }
+        q = q.bind(limit as i64).bind(offset as i64);
+
+        use sqlx::Row;
+        let rows = q.fetch_all(pool).await?;
+
+        let mut items = Vec::new();
+        let mut total = 0;
+        for row in rows {
+            if total == 0 {
+                total = row.try_get::<i64, _>("total_count").unwrap_or(0) as usize;
+            }
+            let emb_text: String = row.try_get("emb_text").unwrap_or_else(|_| "[]".to_string());
+            let embedding: Vec<f32> = serde_json::from_str(&emb_text).unwrap_or_default();
+            items.push(KnowledgeObject {
+                id: row.try_get("id").unwrap_or_default(),
+                label: row.try_get("label").unwrap_or_default(),
+                description: row.try_get("description").unwrap_or_default(),
+                layer: row.try_get("layer").unwrap_or(0),
+                document_id: row.try_get("document_id").ok(),
+                embedding,
+            });
+        }
+
+        Ok(PaginatedResponse {
+            items,
+            total,
+            limit,
+            offset,
+        })
+    }
+
+    pub async fn read_node(
+        &self,
+        pool: &PgPool,
+        id: &str,
+    ) -> Result<serde_json::Value, GraphRagError> {
+        let norm_id = normalize_entity_id(id);
+
+        use sqlx::Row;
+        let row = sqlx::query(
+            "SELECT id, label, description, layer, document_id, embedding::TEXT as emb_text
+             FROM knowledge_objects WHERE id = $1",
+        )
+        .bind(&norm_id)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(r) = row {
+            let emb_text: String = r.try_get("emb_text").unwrap_or_else(|_| "[]".to_string());
+            let embedding: Vec<f32> = serde_json::from_str(&emb_text).unwrap_or_default();
+            let node = KnowledgeObject {
+                id: r.try_get("id").unwrap_or_default(),
+                label: r.try_get("label").unwrap_or_default(),
+                description: r.try_get("description").unwrap_or_default(),
+                layer: r.try_get("layer").unwrap_or(0),
+                document_id: r.try_get("document_id").ok(),
+                embedding,
+            };
+
+            #[derive(sqlx::FromRow, Serialize)]
+            struct EdgeOut {
+                predicate: String,
+                target_id: String,
+            }
+            let outgoing = sqlx::query_as::<_, EdgeOut>(
+                "SELECT predicate, target_id FROM graph_tuples WHERE source_id = $1",
+            )
+            .bind(&norm_id)
+            .fetch_all(pool)
+            .await?;
+
+            #[derive(sqlx::FromRow, Serialize)]
+            struct EdgeIn {
+                source_id: String,
+                predicate: String,
+            }
+            let incoming = sqlx::query_as::<_, EdgeIn>(
+                "SELECT source_id, predicate FROM graph_tuples WHERE target_id = $1",
+            )
+            .bind(&norm_id)
+            .fetch_all(pool)
+            .await?;
+
+            Ok(serde_json::json!({
+                "node": node,
+                "outgoing_edges": outgoing,
+                "incoming_edges": incoming,
+            }))
+        } else {
+            Err(GraphRagError::NodeNotFound(norm_id))
+        }
+    }
+
+    pub async fn edit_node(
+        &self,
+        pool: &PgPool,
+        id: &str,
+        label: Option<&str>,
+        description: Option<&str>,
+        layer: Option<i32>,
+        document_id: Option<Option<&str>>,
+    ) -> Result<(), GraphRagError> {
+        let norm_id = normalize_entity_id(id);
+
+        use sqlx::Row;
+        let row = sqlx::query(
+            "SELECT label, description, layer, document_id FROM knowledge_objects WHERE id = $1",
+        )
+        .bind(&norm_id)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(r) = row {
+            let mut l: String = r.try_get("label").unwrap_or_default();
+            let mut d: String = r.try_get("description").unwrap_or_default();
+            let mut ly: i32 = r.try_get("layer").unwrap_or(0);
+            let mut doc: Option<String> = r.try_get("document_id").unwrap_or(None);
+
+            if let Some(nl) = label {
+                l = nl.to_string();
+            }
+            if let Some(nd) = description {
+                d = nd.to_string();
+            }
+            if let Some(nly) = layer {
+                ly = nly;
+            }
+            if let Some(ndoc) = document_id {
+                doc = ndoc.map(|s| s.to_string());
+            }
+
+            let new_embedding = compute_embedding_64d(&format!("{} {} {}", norm_id, l, d));
+            let emb_str = format_pgvector(&new_embedding);
+
+            sqlx::query(
+                "UPDATE knowledge_objects SET label = $1, description = $2, layer = $3, document_id = $4, embedding = $5::vector, updated_at = NOW() WHERE id = $6"
+            )
+            .bind(&l)
+            .bind(&d)
+            .bind(ly)
+            .bind(&doc)
+            .bind(&emb_str)
+            .bind(&norm_id)
+            .execute(pool)
+            .await?;
+
+            let mut guard = self.memory.write().await;
+            if let Some(n) = guard.nodes.get_mut(&norm_id) {
+                n.label = l;
+                n.description = d;
+                n.layer = ly;
+                n.document_id = doc;
+                n.embedding = new_embedding;
+            }
+
+            Ok(())
+        } else {
+            Err(GraphRagError::NodeNotFound(norm_id))
+        }
+    }
+
+    pub async fn add_node(
+        &self,
+        pool: &PgPool,
+        node: KnowledgeObject,
+    ) -> Result<(), GraphRagError> {
+        let norm_id = normalize_entity_id(&node.id);
+        if norm_id.is_empty() {
+            return Err(GraphRagError::EmptyNodeId);
+        }
+        if node.label.trim().is_empty() {
+            return Err(GraphRagError::EmptyNodeLabel);
+        }
+
+        let embedding = if node.embedding.len() == EMBEDDING_DIM {
+            node.embedding.clone()
+        } else {
+            compute_embedding_64d(&format!("{} {} {}", norm_id, node.label, node.description))
+        };
+        let emb_str = format_pgvector(&embedding);
+
+        sqlx::query(
+            "INSERT INTO knowledge_objects (id, label, description, layer, document_id, embedding, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6::vector, NOW())
+             ON CONFLICT (id) DO UPDATE SET
+                label = EXCLUDED.label,
+                description = EXCLUDED.description,
+                layer = EXCLUDED.layer,
+                document_id = EXCLUDED.document_id,
+                embedding = EXCLUDED.embedding,
+                updated_at = NOW()"
+        )
+        .bind(&norm_id)
+        .bind(&node.label)
+        .bind(&node.description)
+        .bind(node.layer)
+        .bind(&node.document_id)
+        .bind(&emb_str)
+        .execute(pool)
+        .await?;
+
+        let mut guard = self.memory.write().await;
+        guard.nodes.insert(
+            norm_id.clone(),
+            KnowledgeObject {
+                id: norm_id,
+                label: node.label,
+                description: node.description,
+                layer: node.layer,
+                document_id: node.document_id,
+                embedding,
+            },
+        );
+
+        Ok(())
+    }
+
+    pub async fn delete_node(
+        &self,
+        pool: &PgPool,
+        id: &str,
+    ) -> Result<(), GraphRagError> {
+        let norm_id = normalize_entity_id(id);
+
+        let res = sqlx::query("DELETE FROM knowledge_objects WHERE id = $1")
+            .bind(&norm_id)
+            .execute(pool)
+            .await?;
+
+        if res.rows_affected() == 0 {
+            return Err(GraphRagError::NodeNotFound(norm_id));
+        }
+
+        sqlx::query("DELETE FROM graph_tuples WHERE source_id = $1 OR target_id = $1")
+            .bind(&norm_id)
+            .execute(pool)
+            .await?;
+
+        let mut guard = self.memory.write().await;
+        guard.nodes.remove(&norm_id);
+        guard.edges.retain(|e| e.source != norm_id && e.target != norm_id);
+
+        Ok(())
+    }
+
+    pub async fn browse_edges(
+        &self,
+        pool: &PgPool,
+        source: Option<&str>,
+        predicate: Option<&str>,
+        target: Option<&str>,
+        document_id: Option<&str>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<PaginatedResponse<GraphTuple>, GraphRagError> {
+        let mut conditions = Vec::new();
+        let mut binds: Vec<String> = Vec::new();
+        let mut bind_idx = 1;
+
+        if let Some(s) = source {
+            conditions.push(format!("source_id = ${}", bind_idx));
+            binds.push(s.to_string());
+            bind_idx += 1;
+        }
+
+        if let Some(p) = predicate {
+            conditions.push(format!("predicate = ${}", bind_idx));
+            binds.push(p.to_string());
+            bind_idx += 1;
+        }
+
+        if let Some(t) = target {
+            conditions.push(format!("target_id = ${}", bind_idx));
+            binds.push(t.to_string());
+            bind_idx += 1;
+        }
+
+        if let Some(d) = document_id {
+            conditions.push(format!("document_id = ${}", bind_idx));
+            binds.push(d.to_string());
+            bind_idx += 1;
+        }
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", conditions.join(" AND "))
+        };
+
+        let query_str = format!(
+            "SELECT source_id, predicate, target_id, document_id, count(*) OVER() as total_count
+             FROM graph_tuples
+             {}
+             ORDER BY source_id ASC, predicate ASC, target_id ASC
+             LIMIT ${} OFFSET ${}",
+            where_clause, bind_idx, bind_idx + 1
+        );
+
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(query_str.as_str()));
+        for b in &binds {
+            q = q.bind(b);
+        }
+        q = q.bind(limit as i64).bind(offset as i64);
+
+        use sqlx::Row;
+        let rows = q.fetch_all(pool).await?;
+
+        let mut items = Vec::new();
+        let mut total = 0;
+        for row in rows {
+            if total == 0 {
+                total = row.try_get::<i64, _>("total_count").unwrap_or(0) as usize;
+            }
+            items.push(GraphTuple {
+                source: row.try_get("source_id").unwrap_or_default(),
+                predicate: row.try_get("predicate").unwrap_or_default(),
+                target: row.try_get("target_id").unwrap_or_default(),
+                document_id: row.try_get("document_id").ok(),
+            });
+        }
+
+        Ok(PaginatedResponse {
+            items,
+            total,
+            limit,
+            offset,
+        })
+    }
+
+    pub async fn read_edge(
+        &self,
+        pool: &PgPool,
+        source: &str,
+        predicate: &str,
+        target: &str,
+    ) -> Result<serde_json::Value, GraphRagError> {
+        let norm_s = normalize_entity_id(source);
+        let norm_p = predicate.trim().to_ascii_uppercase().replace(' ', "_");
+        let norm_t = normalize_entity_id(target);
+
+        use sqlx::Row;
+        let row = sqlx::query(
+            "SELECT source_id, predicate, target_id, document_id
+             FROM graph_tuples
+             WHERE source_id = $1 AND predicate = $2 AND target_id = $3",
+        )
+        .bind(&norm_s)
+        .bind(&norm_p)
+        .bind(&norm_t)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(r) = row {
+            let edge = GraphTuple {
+                source: r.try_get("source_id").unwrap_or_default(),
+                predicate: r.try_get("predicate").unwrap_or_default(),
+                target: r.try_get("target_id").unwrap_or_default(),
+                document_id: r.try_get("document_id").ok(),
+            };
+
+            #[derive(sqlx::FromRow, Serialize)]
+            struct BriefNode {
+                id: String,
+                label: String,
+            }
+
+            let source_node = sqlx::query_as::<_, BriefNode>(
+                "SELECT id, label FROM knowledge_objects WHERE id = $1",
+            )
+            .bind(&norm_s)
+            .fetch_optional(pool)
+            .await?;
+
+            let target_node = sqlx::query_as::<_, BriefNode>(
+                "SELECT id, label FROM knowledge_objects WHERE id = $1",
+            )
+            .bind(&norm_t)
+            .fetch_optional(pool)
+            .await?;
+
+            Ok(serde_json::json!({
+                "edge": edge,
+                "source_node": source_node,
+                "target_node": target_node,
+            }))
+        } else {
+            Err(GraphRagError::EdgeNotFound(norm_s, norm_p, norm_t))
+        }
+    }
+
+    pub async fn edit_edge(
+        &self,
+        pool: &PgPool,
+        source: &str,
+        predicate: &str,
+        target: &str,
+        new_predicate: Option<&str>,
+        new_target: Option<&str>,
+        new_document_id: Option<Option<&str>>,
+    ) -> Result<(), GraphRagError> {
+        let norm_s = normalize_entity_id(source);
+        let norm_p = predicate.trim().to_ascii_uppercase().replace(' ', "_");
+        let norm_t = normalize_entity_id(target);
+
+        let row = sqlx::query(
+            "SELECT document_id FROM graph_tuples WHERE source_id = $1 AND predicate = $2 AND target_id = $3",
+        )
+        .bind(&norm_s)
+        .bind(&norm_p)
+        .bind(&norm_t)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(r) = row {
+            let mut final_p = norm_p.clone();
+            let mut final_t = norm_t.clone();
+            use sqlx::Row;
+            let mut final_doc: Option<String> = r.try_get("document_id").unwrap_or(None);
+
+            if let Some(np) = new_predicate {
+                final_p = np.trim().to_ascii_uppercase().replace(' ', "_");
+            }
+            if let Some(nt) = new_target {
+                final_t = normalize_entity_id(nt);
+            }
+            if let Some(ndoc) = new_document_id {
+                final_doc = ndoc.map(|s| s.to_string());
+            }
+
+            if final_p != norm_p || final_t != norm_t {
+                // To replace parts of the primary key, we delete the old and insert the new
+                sqlx::query("DELETE FROM graph_tuples WHERE source_id = $1 AND predicate = $2 AND target_id = $3")
+                    .bind(&norm_s)
+                    .bind(&norm_p)
+                    .bind(&norm_t)
+                    .execute(pool)
+                    .await?;
+
+                sqlx::query(
+                    "INSERT INTO graph_tuples (source_id, predicate, target_id, document_id, updated_at)
+                     VALUES ($1, $2, $3, $4, NOW())"
+                )
+                .bind(&norm_s)
+                .bind(&final_p)
+                .bind(&final_t)
+                .bind(&final_doc)
+                .execute(pool)
+                .await?;
+
+                let mut guard = self.memory.write().await;
+                guard.edges.retain(|e| !(e.source == norm_s && e.predicate == norm_p && e.target == norm_t));
+                guard.edges.insert(GraphTuple {
+                    source: norm_s,
+                    predicate: final_p,
+                    target: final_t,
+                    document_id: final_doc,
+                });
+            } else {
+                sqlx::query(
+                    "UPDATE graph_tuples SET document_id = $1, updated_at = NOW() WHERE source_id = $2 AND predicate = $3 AND target_id = $4"
+                )
+                .bind(&final_doc)
+                .bind(&norm_s)
+                .bind(&norm_p)
+                .bind(&norm_t)
+                .execute(pool)
+                .await?;
+
+                let mut guard = self.memory.write().await;
+                if let Some(mut e) = guard.edges.take(&GraphTuple {
+                    source: norm_s.clone(),
+                    predicate: norm_p.clone(),
+                    target: norm_t.clone(),
+                    document_id: None, // document_id isn't in PartialEq for GraphTuple
+                }) {
+                    e.document_id = final_doc;
+                    guard.edges.insert(e);
+                }
+            }
+
+            Ok(())
+        } else {
+            Err(GraphRagError::EdgeNotFound(norm_s, norm_p, norm_t))
+        }
+    }
+
+    pub async fn add_edge(
+        &self,
+        pool: &PgPool,
+        edge: GraphTuple,
+        auto_create_nodes: bool,
+    ) -> Result<(), GraphRagError> {
+        let norm_s = normalize_entity_id(&edge.source);
+        let norm_p = edge.predicate.trim().to_ascii_uppercase().replace(' ', "_");
+        let norm_t = normalize_entity_id(&edge.target);
+
+        if norm_s.is_empty() { return Err(GraphRagError::EmptyNodeId); }
+        if norm_t.is_empty() { return Err(GraphRagError::EmptyNodeId); }
+        if norm_p.is_empty() { return Err(GraphRagError::EmptyPredicate); }
+
+        if !auto_create_nodes {
+            let s_exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
+                .bind(&norm_s)
+                .fetch_optional(pool)
+                .await?;
+            if s_exists.is_none() {
+                return Err(GraphRagError::NodeNotFound(norm_s));
+            }
+
+            let t_exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
+                .bind(&norm_t)
+                .fetch_optional(pool)
+                .await?;
+            if t_exists.is_none() {
+                return Err(GraphRagError::NodeNotFound(norm_t));
+            }
+        } else {
+            let s_exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
+                .bind(&norm_s)
+                .fetch_optional(pool)
+                .await?;
+            if s_exists.is_none() {
+                self.add_node(pool, KnowledgeObject {
+                    id: norm_s.clone(),
+                    label: "Entity".to_string(),
+                    description: format!("Auto-created node {}", norm_s),
+                    layer: 0,
+                    document_id: edge.document_id.clone(),
+                    embedding: vec![],
+                }).await?;
+            }
+
+            let t_exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM knowledge_objects WHERE id = $1")
+                .bind(&norm_t)
+                .fetch_optional(pool)
+                .await?;
+            if t_exists.is_none() {
+                self.add_node(pool, KnowledgeObject {
+                    id: norm_t.clone(),
+                    label: "Entity".to_string(),
+                    description: format!("Auto-created node {}", norm_t),
+                    layer: 0,
+                    document_id: edge.document_id.clone(),
+                    embedding: vec![],
+                }).await?;
+            }
+        }
+
+        sqlx::query(
+            "INSERT INTO graph_tuples (source_id, predicate, target_id, document_id, updated_at)
+             VALUES ($1, $2, $3, $4, NOW())
+             ON CONFLICT (source_id, predicate, target_id) DO UPDATE SET
+                document_id = EXCLUDED.document_id,
+                updated_at = NOW()"
+        )
+        .bind(&norm_s)
+        .bind(&norm_p)
+        .bind(&norm_t)
+        .bind(&edge.document_id)
+        .execute(pool)
+        .await?;
+
+        let mut guard = self.memory.write().await;
+        let final_edge = GraphTuple {
+            source: norm_s,
+            predicate: norm_p,
+            target: norm_t,
+            document_id: edge.document_id,
+        };
+        guard.edges.replace(final_edge);
+
+        Ok(())
+    }
+
+    pub async fn delete_edge(
+        &self,
+        pool: &PgPool,
+        source: &str,
+        predicate: &str,
+        target: &str,
+    ) -> Result<(), GraphRagError> {
+        let norm_s = normalize_entity_id(source);
+        let norm_p = predicate.trim().to_ascii_uppercase().replace(' ', "_");
+        let norm_t = normalize_entity_id(target);
+
+        let res = sqlx::query("DELETE FROM graph_tuples WHERE source_id = $1 AND predicate = $2 AND target_id = $3")
+            .bind(&norm_s)
+            .bind(&norm_p)
+            .bind(&norm_t)
+            .execute(pool)
+            .await?;
+
+        if res.rows_affected() == 0 {
+            return Err(GraphRagError::EdgeNotFound(norm_s, norm_p, norm_t));
+        }
+
+        let mut guard = self.memory.write().await;
+        guard.edges.retain(|e| !(e.source == norm_s && e.predicate == norm_p && e.target == norm_t));
+
+        Ok(())
+    }
+
+    pub async fn browse_communities(
+        &self,
+        pool: &PgPool,
+        query: Option<&str>,
+        member: Option<&str>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<PaginatedResponse<serde_json::Value>, GraphRagError> {
+        let mut conditions = vec!["layer >= 1".to_string(), "label = 'CommunitySummary'".to_string()];
+        let mut binds: Vec<String> = Vec::new();
+        let mut bind_idx = 1;
+
+        if let Some(q) = query {
+            conditions.push(format!("id ILIKE ${}", bind_idx));
+            binds.push(format!("%{}%", q));
+            bind_idx += 1;
+        }
+
+        if let Some(m) = member {
+            let m_norm = normalize_entity_id(m);
+            conditions.push(format!(
+                "id IN (SELECT source_id FROM graph_tuples WHERE predicate = 'SUMMARIZES' AND target_id = ${})",
+                bind_idx
+            ));
+            binds.push(m_norm);
+            bind_idx += 1;
+        }
+
+        let where_clause = format!("WHERE {}", conditions.join(" AND "));
+
+        let query_str = format!(
+            "SELECT id, description, layer, count(*) OVER() as total_count
+             FROM knowledge_objects
+             {}
+             ORDER BY id ASC
+             LIMIT ${} OFFSET ${}",
+            where_clause, bind_idx, bind_idx + 1
+        );
+
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(query_str.as_str()));
+        for b in &binds {
+            q = q.bind(b);
+        }
+        q = q.bind(limit as i64).bind(offset as i64);
+
+        use sqlx::Row;
+        let rows = q.fetch_all(pool).await?;
+
+        let mut items = Vec::new();
+        let mut total = 0;
+        for row in rows {
+            if total == 0 {
+                total = row.try_get::<i64, _>("total_count").unwrap_or(0) as usize;
+            }
+            let comm_id: String = row.try_get("id").unwrap_or_default();
+
+            let count_res: Option<i64> = sqlx::query_scalar("SELECT count(*) FROM graph_tuples WHERE source_id = $1 AND predicate = 'SUMMARIZES'")
+                .bind(&comm_id)
+                .fetch_optional(pool)
+                .await?;
+
+            items.push(serde_json::json!({
+                "id": comm_id,
+                "description": row.try_get::<String, _>("description").unwrap_or_default(),
+                "layer": row.try_get::<i32, _>("layer").unwrap_or(1),
+                "member_count": count_res.unwrap_or(0)
+            }));
+        }
+
+        Ok(PaginatedResponse {
+            items,
+            total,
+            limit,
+            offset,
+        })
+    }
+
+    pub async fn read_community(
+        &self,
+        pool: &PgPool,
+        id: &str,
+    ) -> Result<serde_json::Value, GraphRagError> {
+        let norm_id = normalize_entity_id(id);
+
+        use sqlx::Row;
+        let row = sqlx::query(
+            "SELECT id, label, description, layer, embedding::TEXT as emb_text
+             FROM knowledge_objects WHERE id = $1 AND layer >= 1 AND label = 'CommunitySummary'",
+        )
+        .bind(&norm_id)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(r) = row {
+            let emb_text: String = r.try_get("emb_text").unwrap_or_else(|_| "[]".to_string());
+            let embedding: Vec<f32> = serde_json::from_str(&emb_text).unwrap_or_default();
+            let summary = KnowledgeObject {
+                id: r.try_get("id").unwrap_or_default(),
+                label: r.try_get("label").unwrap_or_default(),
+                description: r.try_get("description").unwrap_or_default(),
+                layer: r.try_get("layer").unwrap_or(1),
+                document_id: None,
+                embedding,
+            };
+
+            let members: Vec<String> = sqlx::query_scalar(
+                "SELECT target_id FROM graph_tuples WHERE source_id = $1 AND predicate = 'SUMMARIZES'",
+            )
+            .bind(&norm_id)
+            .fetch_all(pool)
+            .await?;
+
+            let mut intra_edges = Vec::new();
+            if !members.is_empty() {
+                let placeholders: String = members.iter()
+                    .enumerate()
+                    .map(|(i, _)| format!("${}", i + 1))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let edge_query_str = format!(
+                    "SELECT source_id, predicate, target_id FROM graph_tuples
+                     WHERE source_id IN ({}) AND target_id IN ({})",
+                    placeholders, placeholders
+                );
+
+                let mut q = sqlx::query(sqlx::AssertSqlSafe(edge_query_str.as_str()));
+                for m in &members {
+                    q = q.bind(m);
+                }
+
+                let edges_rows = q.fetch_all(pool).await?;
+                for e_row in edges_rows {
+                    intra_edges.push(GraphTuple {
+                        source: e_row.try_get("source_id").unwrap_or_default(),
+                        predicate: e_row.try_get("predicate").unwrap_or_default(),
+                        target: e_row.try_get("target_id").unwrap_or_default(),
+                        document_id: None,
+                    });
+                }
+            }
+
+            Ok(serde_json::json!({
+                "summary": summary,
+                "member_nodes": members,
+                "edges": intra_edges,
+            }))
+        } else {
+            Err(GraphRagError::CommunityNotFound(norm_id))
+        }
+    }
+
+    pub async fn edit_community(
+        &self,
+        pool: &PgPool,
+        id: &str,
+        new_description: Option<&str>,
+    ) -> Result<(), GraphRagError> {
+        let norm_id = normalize_entity_id(id);
+
+        use sqlx::Row;
+        let row = sqlx::query(
+            "SELECT description, layer FROM knowledge_objects WHERE id = $1 AND layer >= 1 AND label = 'CommunitySummary'",
+        )
+        .bind(&norm_id)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(r) = row {
+            let mut d: String = r.try_get("description").unwrap_or_default();
+
+            if let Some(nd) = new_description {
+                d = nd.to_string();
+            }
+
+            let new_embedding = compute_embedding_64d(&format!("{} CommunitySummary {}", norm_id, d));
+            let emb_str = format_pgvector(&new_embedding);
+
+            sqlx::query(
+                "UPDATE knowledge_objects SET description = $1, embedding = $2::vector, updated_at = NOW() WHERE id = $3"
+            )
+            .bind(&d)
+            .bind(&emb_str)
+            .bind(&norm_id)
+            .execute(pool)
+            .await?;
+
+            let mut guard = self.memory.write().await;
+            if let Some(n) = guard.nodes.get_mut(&norm_id) {
+                n.description = d;
+                n.embedding = new_embedding;
+            }
+
+            Ok(())
+        } else {
+            Err(GraphRagError::CommunityNotFound(norm_id))
+        }
+    }
+
+    pub async fn rebuild_communities(
+        &self,
+        pool: &PgPool,
+    ) -> Result<Vec<KnowledgeObject>, GraphRagError> {
+        let mut tx = pool.begin().await?;
+
+        sqlx::query("DELETE FROM graph_tuples WHERE predicate = 'SUMMARIZES'")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM knowledge_objects WHERE layer >= 1")
+            .execute(&mut *tx)
+            .await?;
+
+        use sqlx::Row;
+        let mut all_layer0_nodes = Vec::new();
+        let n_rows = sqlx::query("SELECT id, label, description FROM knowledge_objects WHERE layer = 0")
+            .fetch_all(&mut *tx)
+            .await?;
+        for r in n_rows {
+            all_layer0_nodes.push(KnowledgeObject {
+                id: r.try_get("id").unwrap_or_default(),
+                label: r.try_get("label").unwrap_or_default(),
+                description: r.try_get("description").unwrap_or_default(),
+                layer: 0,
+                document_id: None,
+                embedding: vec![],
+            });
+        }
+
+        let mut all_layer0_edges = Vec::new();
+        let e_rows = sqlx::query("SELECT source_id, predicate, target_id FROM graph_tuples WHERE predicate != 'SUMMARIZES'")
+            .fetch_all(&mut *tx)
+            .await?;
+        for r in e_rows {
+            all_layer0_edges.push(GraphTuple {
+                source: r.try_get("source_id").unwrap_or_default(),
+                predicate: r.try_get("predicate").unwrap_or_default(),
+                target: r.try_get("target_id").unwrap_or_default(),
+                document_id: None,
+            });
+        }
+
+        let summaries = build_hierarchical_summaries(&all_layer0_nodes, &all_layer0_edges);
+
+        for node in &summaries.nodes {
+            let emb_str = format_pgvector(&node.embedding);
+            sqlx::query(
+                "INSERT INTO knowledge_objects (id, label, description, layer, embedding, updated_at)
+                 VALUES ($1, $2, $3, $4, $5::vector, NOW())"
+            )
+            .bind(&node.id)
+            .bind(&node.label)
+            .bind(&node.description)
+            .bind(node.layer)
+            .bind(&emb_str)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        for edge in &summaries.edges {
+            sqlx::query(
+                "INSERT INTO graph_tuples (source_id, predicate, target_id, updated_at)
+                 VALUES ($1, $2, $3, NOW())"
+            )
+            .bind(&edge.source)
+            .bind(&edge.predicate)
+            .bind(&edge.target)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+
+        let mut guard = self.memory.write().await;
+        guard.nodes.retain(|_, n| n.layer == 0);
+        guard.edges.retain(|e| e.predicate != "SUMMARIZES");
+
+        for n in &summaries.nodes {
+            guard.nodes.insert(n.id.clone(), n.clone());
+        }
+        for e in &summaries.edges {
+            guard.edges.insert(e.clone());
+        }
+
+        Ok(summaries.nodes)
+    }
+
+    pub async fn delete_community(
+        &self,
+        pool: &PgPool,
+        id: &str,
+    ) -> Result<(), GraphRagError> {
+        let norm_id = normalize_entity_id(id);
+
+        let res = sqlx::query("DELETE FROM knowledge_objects WHERE id = $1 AND layer >= 1 AND label = 'CommunitySummary'")
+            .bind(&norm_id)
+            .execute(pool)
+            .await?;
+
+        if res.rows_affected() == 0 {
+            return Err(GraphRagError::CommunityNotFound(norm_id));
+        }
+
+        sqlx::query("DELETE FROM graph_tuples WHERE source_id = $1 AND predicate = 'SUMMARIZES'")
+            .bind(&norm_id)
+            .execute(pool)
+            .await?;
+
+        let mut guard = self.memory.write().await;
+        guard.nodes.remove(&norm_id);
+        guard.edges.retain(|e| !(e.source == norm_id && e.predicate == "SUMMARIZES"));
+
+        Ok(())
+    }
     pub async fn ingest_markdown(
         &self,
         pool: &PgPool,
