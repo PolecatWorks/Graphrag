@@ -115,3 +115,352 @@ class GraphragApiLibrary:
                 requests.delete(url, timeout=15)
             except requests.RequestException:
                 pass
+
+    # =========================================================================
+    # BREAD API Methods: Documents
+    # =========================================================================
+
+    def browse_documents(
+        self,
+        query: str = None,
+        limit: int = 50,
+        offset: int = 0,
+        expected_status: int = 200,
+    ) -> Dict[str, Any]:
+        """Calls GET /documents."""
+        params = {"limit": limit, "offset": offset}
+        if query:
+            params["q"] = query
+        resp = requests.get(f"{self.be_base_url}/documents", params=params, timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"GET /documents expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json()
+
+    def read_document(self, doc_id: str, expected_status: int = 200) -> Dict[str, Any]:
+        """Calls GET /documents/{id}."""
+        resp = requests.get(f"{self.be_base_url}/documents/{doc_id}", timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"GET /documents/{doc_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json()
+
+    def edit_document(
+        self,
+        doc_id: str,
+        content: str = None,
+        filename: str = None,
+        re_extract: bool = True,
+        expected_status: int = 200,
+    ) -> Any:
+        """Calls PUT /documents/{id}."""
+        payload = {"re_extract": re_extract}
+        if content is not None:
+            payload["content"] = content
+        if filename is not None:
+            payload["filename"] = filename
+        resp = requests.put(f"{self.be_base_url}/documents/{doc_id}", json=payload, timeout=60)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"PUT /documents/{doc_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json() if resp.text else None
+
+    def add_document(self, filename: str, content: str, expected_status: int = 201) -> Dict[str, Any]:
+        """Calls POST /documents."""
+        payload = {"filename": filename, "content": content}
+        resp = requests.post(f"{self.be_base_url}/documents", json=payload, timeout=60)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"POST /documents expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        data = resp.json()
+        doc_id = data.get("document_id") or filename
+        self.ingested_document_ids.append(str(doc_id))
+        return data
+
+    def delete_document(self, doc_id: str, expected_status: int = 204) -> None:
+        """Calls DELETE /documents/{id}."""
+        resp = requests.delete(f"{self.be_base_url}/documents/{doc_id}", timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"DELETE /documents/{doc_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+
+    # =========================================================================
+    # BREAD API Methods: Nodes (Knowledge Objects)
+    # =========================================================================
+
+    def browse_nodes(
+        self,
+        label: str = None,
+        layer: int = None,
+        document_id: str = None,
+        query: str = None,
+        semantic_query: str = None,
+        limit: int = 50,
+        offset: int = 0,
+        expected_status: int = 200,
+    ) -> Dict[str, Any]:
+        """Calls GET /nodes."""
+        params = {"limit": limit, "offset": offset}
+        if label:
+            params["label"] = label
+        if layer is not None:
+            params["layer"] = layer
+        if document_id:
+            params["document_id"] = document_id
+        if query:
+            params["q"] = query
+        if semantic_query:
+            params["semantic_query"] = semantic_query
+        resp = requests.get(f"{self.be_base_url}/nodes", params=params, timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"GET /nodes expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json()
+
+    def read_node(self, node_id: str, expected_status: int = 200) -> Dict[str, Any]:
+        """Calls GET /nodes/{id}."""
+        resp = requests.get(f"{self.be_base_url}/nodes/{node_id}", timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"GET /nodes/{node_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json()
+
+    def add_node(
+        self,
+        node_id: str,
+        label: str,
+        description: str,
+        layer: int = 0,
+        document_id: str = None,
+        expected_status: int = 201,
+    ) -> Any:
+        """Calls POST /nodes."""
+        payload = {
+            "id": node_id,
+            "label": label,
+            "description": description,
+            "layer": layer,
+            "document_id": document_id,
+            "embedding": [],
+        }
+        resp = requests.post(f"{self.be_base_url}/nodes", json=payload, timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"POST /nodes expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json() if resp.text else None
+
+    def edit_node(
+        self,
+        node_id: str,
+        label: str = None,
+        description: str = None,
+        layer: int = None,
+        document_id: str = None,
+        expected_status: int = 200,
+    ) -> Any:
+        """Calls PUT /nodes/{id}."""
+        payload = {}
+        if label is not None:
+            payload["label"] = label
+        if description is not None:
+            payload["description"] = description
+        if layer is not None:
+            payload["layer"] = layer
+        if document_id is not None:
+            payload["document_id"] = document_id
+        resp = requests.put(f"{self.be_base_url}/nodes/{node_id}", json=payload, timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"PUT /nodes/{node_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json() if resp.text else None
+
+    def delete_node(self, node_id: str, expected_status: int = 204) -> None:
+        """Calls DELETE /nodes/{id}."""
+        resp = requests.delete(f"{self.be_base_url}/nodes/{node_id}", timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"DELETE /nodes/{node_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+
+    # =========================================================================
+    # BREAD API Methods: Edges (Graph Tuples)
+    # =========================================================================
+
+    def browse_edges(
+        self,
+        source: str = None,
+        predicate: str = None,
+        target: str = None,
+        document_id: str = None,
+        limit: int = 50,
+        offset: int = 0,
+        expected_status: int = 200,
+    ) -> Dict[str, Any]:
+        """Calls GET /edges."""
+        params = {"limit": limit, "offset": offset}
+        if source:
+            params["source"] = source
+        if predicate:
+            params["predicate"] = predicate
+        if target:
+            params["target"] = target
+        if document_id:
+            params["document_id"] = document_id
+        resp = requests.get(f"{self.be_base_url}/edges", params=params, timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"GET /edges expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json()
+
+    def read_edge(
+        self, source: str, predicate: str, target: str, expected_status: int = 200
+    ) -> Dict[str, Any]:
+        """Calls GET /edges/{source}/{predicate}/{target}."""
+        resp = requests.get(
+            f"{self.be_base_url}/edges/{source}/{predicate}/{target}", timeout=15
+        )
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"GET /edges/{source}/{predicate}/{target} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json()
+
+    def add_edge(
+        self,
+        source: str,
+        predicate: str,
+        target: str,
+        document_id: str = None,
+        auto_create_nodes: bool = False,
+        expected_status: int = 201,
+    ) -> Any:
+        """Calls POST /edges."""
+        payload = {
+            "source": source,
+            "predicate": predicate,
+            "target": target,
+            "document_id": document_id,
+            "auto_create_nodes": auto_create_nodes,
+        }
+        resp = requests.post(f"{self.be_base_url}/edges", json=payload, timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"POST /edges expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json() if resp.text else None
+
+    def edit_edge(
+        self,
+        source: str,
+        predicate: str,
+        target: str,
+        new_predicate: str = None,
+        new_target: str = None,
+        document_id: str = None,
+        expected_status: int = 200,
+    ) -> Any:
+        """Calls PUT /edges/{source}/{predicate}/{target}."""
+        payload = {}
+        if new_predicate is not None:
+            payload["predicate"] = new_predicate
+        if new_target is not None:
+            payload["target"] = new_target
+        if document_id is not None:
+            payload["document_id"] = document_id
+        resp = requests.put(
+            f"{self.be_base_url}/edges/{source}/{predicate}/{target}",
+            json=payload,
+            timeout=15,
+        )
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"PUT /edges/{source}/{predicate}/{target} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json() if resp.text else None
+
+    def delete_edge(
+        self, source: str, predicate: str, target: str, expected_status: int = 204
+    ) -> None:
+        """Calls DELETE /edges/{source}/{predicate}/{target}."""
+        resp = requests.delete(
+            f"{self.be_base_url}/edges/{source}/{predicate}/{target}", timeout=15
+        )
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"DELETE /edges expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+
+    # =========================================================================
+    # BREAD API Methods: Communities
+    # =========================================================================
+
+    def browse_communities(
+        self,
+        query: str = None,
+        member: str = None,
+        limit: int = 50,
+        offset: int = 0,
+        expected_status: int = 200,
+    ) -> Dict[str, Any]:
+        """Calls GET /communities."""
+        params = {"limit": limit, "offset": offset}
+        if query:
+            params["q"] = query
+        if member:
+            params["member"] = member
+        resp = requests.get(f"{self.be_base_url}/communities", params=params, timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"GET /communities expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json()
+
+    def read_community(self, comm_id: str, expected_status: int = 200) -> Dict[str, Any]:
+        """Calls GET /communities/{id}."""
+        resp = requests.get(f"{self.be_base_url}/communities/{comm_id}", timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"GET /communities/{comm_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json()
+
+    def edit_community(
+        self, comm_id: str, description: str, expected_status: int = 200
+    ) -> Any:
+        """Calls PUT /communities/{id}."""
+        payload = {"description": description}
+        resp = requests.put(
+            f"{self.be_base_url}/communities/{comm_id}", json=payload, timeout=15
+        )
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"PUT /communities/{comm_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json() if resp.text else None
+
+    def rebuild_communities(self, expected_status: int = 200) -> Any:
+        """Calls POST /communities/rebuild."""
+        resp = requests.post(f"{self.be_base_url}/communities/rebuild", timeout=30)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"POST /communities/rebuild expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.json() if resp.text else None
+
+    def delete_community(self, comm_id: str, expected_status: int = 204) -> None:
+        """Calls DELETE /communities/{id}."""
+        resp = requests.delete(f"{self.be_base_url}/communities/{comm_id}", timeout=15)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"DELETE /communities/{comm_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )

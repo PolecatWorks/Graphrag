@@ -80,6 +80,59 @@ class TestGraphragApiLibrary(unittest.TestCase):
         )
         self.assertEqual(len(result["contexts"]), 1)
 
+    @patch("GraphragApiLibrary.requests.get")
+    def test_bread_documents_browse_and_read(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"items": [{"id": "doc1"}], "total": 1, "limit": 50, "offset": 0}
+        mock_get.return_value = mock_resp
+
+        res = self.lib.browse_documents(query="test")
+        self.assertEqual(res["total"], 1)
+        mock_get.assert_called_once_with(
+            "http://localhost:8080/documents",
+            params={"limit": 50, "offset": 0, "q": "test"},
+            timeout=15,
+        )
+
+        mock_get.reset_mock()
+        mock_resp.json.return_value = {"document": {"id": "doc1"}, "extracted_nodes": []}
+        doc = self.lib.read_document("doc1")
+        self.assertEqual(doc["document"]["id"], "doc1")
+        mock_get.assert_called_once_with("http://localhost:8080/documents/doc1", timeout=15)
+
+    @patch("GraphragApiLibrary.requests.post")
+    def test_bread_nodes_add(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        mock_resp.text = ""
+        mock_post.return_value = mock_resp
+
+        self.lib.add_node("test_node", "Astronaut", "Test description")
+        mock_post.assert_called_once_with(
+            "http://localhost:8080/nodes",
+            json={
+                "id": "test_node",
+                "label": "Astronaut",
+                "description": "Test description",
+                "layer": 0,
+                "document_id": None,
+                "embedding": [],
+            },
+            timeout=15,
+        )
+
+    @patch("GraphragApiLibrary.requests.delete")
+    def test_bread_edges_delete(self, mock_delete):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 204
+        mock_delete.return_value = mock_resp
+
+        self.lib.delete_edge("neil_armstrong", "COMMANDED", "apollo_11")
+        mock_delete.assert_called_once_with(
+            "http://localhost:8080/edges/neil_armstrong/COMMANDED/apollo_11", timeout=15
+        )
+
 
 class TestRagasEvalLibrary(unittest.TestCase):
     def test_evaluate_rag_response_with_injected_scorer(self):
