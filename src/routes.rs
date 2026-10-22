@@ -1,17 +1,110 @@
 use crate::state::AppState;
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, State, Query},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{get, post},
 };
+use crate::graph_rag::{GraphRagError, GraphTuple, KnowledgeObject};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct IngestRequest {
     pub filename: String,
     pub content: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DocumentEditRequest {
+    pub content: Option<String>,
+    pub filename: Option<String>,
+    #[serde(default = "default_true")]
+    pub re_extract: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BrowseQuery {
+    pub q: Option<String>,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+    #[serde(default = "default_offset")]
+    pub offset: usize,
+}
+
+fn default_limit() -> usize {
+    50
+}
+
+fn default_offset() -> usize {
+    0
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BrowseNodeQuery {
+    pub label: Option<String>,
+    pub layer: Option<i32>,
+    pub document_id: Option<String>,
+    pub q: Option<String>,
+    pub semantic_query: Option<String>,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+    #[serde(default = "default_offset")]
+    pub offset: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct NodeEditRequest {
+    pub label: Option<String>,
+    pub description: Option<String>,
+    pub layer: Option<i32>,
+    pub document_id: Option<Option<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BrowseEdgeQuery {
+    pub source: Option<String>,
+    pub predicate: Option<String>,
+    pub target: Option<String>,
+    pub document_id: Option<String>,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+    #[serde(default = "default_offset")]
+    pub offset: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct EdgeEditRequest {
+    pub predicate: Option<String>,
+    pub target: Option<String>,
+    pub document_id: Option<Option<String>>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AddEdgeRequest {
+    #[serde(flatten)]
+    pub edge: GraphTuple,
+    #[serde(default)]
+    pub auto_create_nodes: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BrowseCommunityQuery {
+    pub q: Option<String>,
+    pub member: Option<String>,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+    #[serde(default = "default_offset")]
+    pub offset: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CommunityEditRequest {
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -43,9 +136,16 @@ pub fn create_router() -> Router<AppState> {
         .route("/hello", get(hello))
         .route("/ingest", post(ingest_document))
         .route("/query", post(query_graphrag))
-        .route("/documents/{id}", delete(delete_document))
+        .route("/documents", get(browse_documents).post(add_document))
+        .route("/documents/{id}", get(read_document).put(edit_document).delete(delete_document))
+        .route("/nodes", get(browse_nodes).post(add_node))
+        .route("/nodes/{id}", get(read_node).put(edit_node).delete(delete_node))
+        .route("/edges", get(browse_edges).post(add_edge))
+        .route("/edges/{source}/{predicate}/{target}", get(read_edge).put(edit_edge).delete(delete_edge))
+        .route("/communities", get(browse_communities))
+        .route("/communities/rebuild", post(rebuild_communities))
+        .route("/communities/{id}", get(read_community).put(edit_community).delete(delete_community))
 }
-
 async fn hello() -> &'static str {
     "Hello, World!"
 }
@@ -108,6 +208,147 @@ async fn delete_document(
     state.graph_store.delete_document(&state.pool, &id).await;
     StatusCode::NO_CONTENT
 }
+fn map_graph_error_to_status(err: &GraphRagError) -> StatusCode {
+    match err {
+        GraphRagError::DocumentNotFound(_) | GraphRagError::NodeNotFound(_) | GraphRagError::EdgeNotFound { .. } | GraphRagError::CommunityNotFound(_) => StatusCode::NOT_FOUND,
+        GraphRagError::EmptyMarkdownContent | GraphRagError::EmptyFilename | GraphRagError::EmptyQuestion | GraphRagError::ZeroMaxChunkChars | GraphRagError::EmptyNodeLabel | GraphRagError::EmptyNodeId | GraphRagError::EmptyPredicate | GraphRagError::InvalidExtractionJson(_) => StatusCode::BAD_REQUEST,
+        GraphRagError::Llm(_) | GraphRagError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+async fn browse_documents(State(state): State<AppState>, Query(query): Query<BrowseQuery>) -> impl IntoResponse {
+    match state.graph_store.browse_documents(&state.pool, query.q.as_deref(), query.limit, query.offset).await {
+        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn read_document(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    match state.graph_store.read_document(&state.pool, &id).await {
+        Ok(doc) => (StatusCode::OK, Json(doc)).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn edit_document(State(state): State<AppState>, Path(id): Path<String>, Json(payload): Json<DocumentEditRequest>) -> impl IntoResponse {
+    match state.graph_store.edit_document(&state.pool, &state.llm, &id, payload.content.as_deref(), payload.filename.as_deref(), payload.re_extract).await {
+        Ok(_) => StatusCode::OK.into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn add_document(State(state): State<AppState>, Json(payload): Json<IngestRequest>) -> impl IntoResponse {
+    match state.graph_store.ingest_markdown(&state.pool, &state.llm, &payload.filename, &payload.content).await {
+        Ok((document_id, chunks_processed, nodes_extracted, edges_extracted)) => (StatusCode::CREATED, Json(IngestResponse { document_id, chunks_processed, nodes_extracted, edges_extracted })).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn browse_nodes(State(state): State<AppState>, Query(query): Query<BrowseNodeQuery>) -> impl IntoResponse {
+    match state.graph_store.browse_nodes(&state.pool, query.label.as_deref(), query.layer, query.document_id.as_deref(), query.q.as_deref(), query.semantic_query.as_deref(), query.limit, query.offset).await {
+        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn read_node(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    match state.graph_store.read_node(&state.pool, &id).await {
+        Ok(val) => (StatusCode::OK, Json(val)).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn edit_node(State(state): State<AppState>, Path(id): Path<String>, Json(payload): Json<NodeEditRequest>) -> impl IntoResponse {
+    match state.graph_store.edit_node(&state.pool, &id, payload.label.as_deref(), payload.description.as_deref(), payload.layer, payload.document_id.as_ref().map(|o| o.as_deref())).await {
+        Ok(_) => StatusCode::OK.into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn add_node(State(state): State<AppState>, Json(payload): Json<KnowledgeObject>) -> impl IntoResponse {
+    match state.graph_store.add_node(&state.pool, payload).await {
+        Ok(_) => StatusCode::CREATED.into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn delete_node(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    match state.graph_store.delete_node(&state.pool, &id).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn browse_edges(State(state): State<AppState>, Query(query): Query<BrowseEdgeQuery>) -> impl IntoResponse {
+    match state.graph_store.browse_edges(&state.pool, query.source.as_deref(), query.predicate.as_deref(), query.target.as_deref(), query.document_id.as_deref(), query.limit, query.offset).await {
+        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn read_edge(State(state): State<AppState>, Path((source, predicate, target)): Path<(String, String, String)>) -> impl IntoResponse {
+    match state.graph_store.read_edge(&state.pool, &source, &predicate, &target).await {
+        Ok(val) => (StatusCode::OK, Json(val)).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn edit_edge(State(state): State<AppState>, Path((source, predicate, target)): Path<(String, String, String)>, Json(payload): Json<EdgeEditRequest>) -> impl IntoResponse {
+    match state.graph_store.edit_edge(&state.pool, &source, &predicate, &target, payload.predicate.as_deref(), payload.target.as_deref(), payload.document_id.as_ref().map(|o| o.as_deref())).await {
+        Ok(_) => StatusCode::OK.into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn add_edge(State(state): State<AppState>, Json(payload): Json<AddEdgeRequest>) -> impl IntoResponse {
+    match state.graph_store.add_edge(&state.pool, payload.edge, payload.auto_create_nodes).await {
+        Ok(_) => StatusCode::CREATED.into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn delete_edge(State(state): State<AppState>, Path((source, predicate, target)): Path<(String, String, String)>) -> impl IntoResponse {
+    match state.graph_store.delete_edge(&state.pool, &source, &predicate, &target).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn browse_communities(State(state): State<AppState>, Query(query): Query<BrowseCommunityQuery>) -> impl IntoResponse {
+    match state.graph_store.browse_communities(&state.pool, query.q.as_deref(), query.member.as_deref(), query.limit, query.offset).await {
+        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn read_community(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    match state.graph_store.read_community(&state.pool, &id).await {
+        Ok(val) => (StatusCode::OK, Json(val)).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn edit_community(State(state): State<AppState>, Path(id): Path<String>, Json(payload): Json<CommunityEditRequest>) -> impl IntoResponse {
+    match state.graph_store.edit_community(&state.pool, &id, payload.description.as_deref()).await {
+        Ok(_) => StatusCode::OK.into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn rebuild_communities(State(state): State<AppState>) -> impl IntoResponse {
+    match state.graph_store.rebuild_communities(&state.pool).await {
+        Ok(summaries) => (StatusCode::OK, Json(summaries)).into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
+async fn delete_community(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    match state.graph_store.delete_community(&state.pool, &id).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
