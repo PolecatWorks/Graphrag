@@ -99,12 +99,12 @@ BREAD Operations: Communities Resource
 
     # Read community
     ${comm}=    Read Community    ${first_id}
-    Should Be Equal As Strings    ${comm}[community][id]    ${first_id}
+    Should Be Equal As Strings    ${comm}[summary][id]    ${first_id}
 
     # Edit community description
     Edit Community    comm_id=${first_id}    description=Updated community description for Apollo 11 graph.
     ${updated_comm}=    Read Community    ${first_id}
-    Should Contain    ${updated_comm}[community][description]    Updated community description
+    Should Contain    ${updated_comm}[summary][description]    Updated community description
 
 BREAD Impact On Graphrag Query Answering
     [Documentation]    Verifies that adding a new node and edge via BREAD immediately reflects in subsequent /query answers.
