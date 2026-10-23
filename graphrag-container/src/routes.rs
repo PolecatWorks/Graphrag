@@ -970,11 +970,11 @@ mod tests {
     async fn test_bread_community_endpoints() {
         let state = get_test_app_state().await;
 
-        // 1. Add nodes and edge
-        {
-            let mut guard = state.graph_store.memory.write().await;
-            guard.nodes.insert(
-                "c_node_1".to_string(),
+        // 1. Add nodes and edge using add_node and add_edge
+        state
+            .graph_store
+            .add_node(
+                &state.pool,
                 KnowledgeObject {
                     id: "c_node_1".to_string(),
                     label: "Entity".to_string(),
@@ -983,9 +983,14 @@ mod tests {
                     document_id: None,
                     embedding: vec![0.1; 64],
                 },
-            );
-            guard.nodes.insert(
-                "c_node_2".to_string(),
+            )
+            .await
+            .unwrap();
+
+        state
+            .graph_store
+            .add_node(
+                &state.pool,
                 KnowledgeObject {
                     id: "c_node_2".to_string(),
                     label: "Entity".to_string(),
@@ -994,14 +999,24 @@ mod tests {
                     document_id: None,
                     embedding: vec![0.1; 64],
                 },
-            );
-            guard.edges.insert(GraphTuple {
-                source: "c_node_1".to_string(),
-                predicate: "RELATES_TO".to_string(),
-                target: "c_node_2".to_string(),
-                document_id: None,
-            });
-        }
+            )
+            .await
+            .unwrap();
+
+        state
+            .graph_store
+            .add_edge(
+                &state.pool,
+                GraphTuple {
+                    source: "c_node_1".to_string(),
+                    predicate: "RELATES_TO".to_string(),
+                    target: "c_node_2".to_string(),
+                    document_id: None,
+                },
+                false,
+            )
+            .await
+            .unwrap();
 
         // 2. POST /communities/rebuild
         let app = create_router().with_state(state.clone());
