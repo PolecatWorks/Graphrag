@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot generator="Robot 7.5 (Python 3.14.8 on linux)" generated="2026-10-23T07:44:59.565178" rpa="false" schemaversion="5">
+<suite id="s1" name="Robot-Tests" source="/tmp/robot-tests">
+<suite id="s1-s1" name="Tests" source="/tmp/robot-tests/tests">
+<suite id="s1-s1-s1" name="01 Health And Foundation" source="/tmp/robot-tests/tests/01_health_and_foundation.robot">
+<test id="s1-s1-s1-t1" name="Verify HaMS Liveness Probe" line="10">
+<kw name="Verify Hams Liveness" owner="GraphragApiLibrary">
+<msg time="2026-10-23T07:44:59.668457" level="DEBUG">Starting new HTTP connection (1): 10.244.8.78:8079</msg>
+<msg time="2026-10-23T07:44:59.671343" level="DEBUG">http://10.244.8.78:8079 "GET /hams/alive HTTP/1.1" 200 29</msg>
+<doc>Verifies that the HaMS /hams/alive endpoint returns HTTP 200.</doc>
+<status status="PASS" start="2026-10-23T07:44:59.667099" elapsed="0.004634"/>
+</kw>
+<doc>Confirms the HaMS /health/live probe returns HTTP 200 OK.</doc>
+<tag>hams</tag>
+<tag>health</tag>
+<status status="PASS" start="2026-10-23T07:44:59.666269" elapsed="0.005610"/>
+</test>
+<test id="s1-s1-s1-t2" name="Verify HaMS Readiness Probe" line="15">
+<kw name="Verify Hams Readiness" owner="GraphragApiLibrary">
+<msg time="2026-10-23T07:44:59.673302" level="DEBUG">Starting new HTTP connection (1): 10.244.8.78:8079</msg>
+<msg time="2026-10-23T07:44:59.678652" level="DEBUG">http://10.244.8.78:8079 "GET /hams/ready HTTP/1.1" 200 29</msg>
+<doc>Verifies that the HaMS /hams/ready endpoint returns HTTP 200.</doc>
+<status status="PASS" start="2026-10-23T07:44:59.672607" elapsed="0.006370"/>
+</kw>
+<doc>Confirms the HaMS /health/ready probe returns HTTP 200 OK after DB and LLM client initialization.</doc>
+<tag>hams</tag>
+<tag>health</tag>
+<status status="PASS" start="2026-10-23T07:44:59.672130" elapsed="0.006991"/>
+</test>
+<test id="s1-s1-s1-t3" name="Verify HaMS Prometheus Metrics Exposure" line="20">
+<kw name="Verify Hams Metrics" owner="GraphragApiLibrary">
+<msg time="2026-10-23T07:44:59.680338" level="DEBUG">Starting new HTTP connection (1): 10.244.8.78:8079</msg>
+<msg time="2026-10-23T07:44:59.685124" level="DEBUG">http://10.244.8.78:8079 "GET /hams/metrics HTTP/1.1" 200 21</msg>
+<msg time="2026-10-23T07:44:59.685463" level="INFO">${metrics} = No metrics registered</msg>
+<var>${metrics}</var>
+<doc>Verifies that the HaMS /hams/metrics endpoint returns non-empty Prometheus metrics.</doc>
+<status status="PASS" start="2026-10-23T07:44:59.679762" elapsed="0.005735"/>
+</kw>
+<kw name="Should Not Be Empty" owner="BuiltIn">
+<msg time="2026-10-23T07:44:59.686067" level="INFO">Length is 21.</msg>
+<arg>${metrics}</arg>
+<doc>Verifies that the given item is not empty.</doc>
+<status status="PASS" start="2026-10-23T07:44:59.685607" elapsed="0.000513"/>
+</kw>
+<doc>Confirms the HaMS /metrics endpoint exposes Prometheus telemetry.</doc>
+<tag>hams</tag>
+<tag>metrics</tag>
+<status status="PASS" start="2026-10-23T07:44:59.679352" elapsed="0.006871"/>
+</test>
+<test id="s1-s1-s1-t4" name="Verify Axum Hello Endpoint" line="26">
+<kw name="Get Hello Endpoint" owner="GraphragApiLibrary">
+<msg time="2026-10-23T07:44:59.687462" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T07:44:59.693744" level="DEBUG">http://graphrag:80 "GET /hello HTTP/1.1" 200 13</msg>
+<msg time="2026-10-23T07:44:59.694077" level="INFO">${body} = Hello, World!</msg>
+<var>${body}</var>
+<doc>Calls GET /hello on the running Graphrag Axum service.</doc>
+<status status="PASS" start="2026-10-23T07:44:59.686772" elapsed="0.007337"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-10-23T07:44:59.694573" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${body}</arg>
+<arg>Hello, World!</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-10-23T07:44:59.694228" elapsed="0.000426"/>
+</kw>
+<doc>Confirms the primary Axum HTTP router responds on GET /hello.</doc>
+<tag>api</tag>
+<tag>foundation</tag>
+<status status="PASS" start="2026-10-23T07:44:59.686411" elapsed="0.008349"/>
+</test>
+<doc>Verifies HaMS sidecar health/metrics probes and foundational Axum endpoints on a running Graphrag instance.</doc>
+<status status="PASS" start="2026-10-23T07:44:59.608604" elapsed="0.086575"/>
+</suite>
+<suite id="s1-s1-s2" name="02 Graph Rag Baseline" source="/tmp/robot-tests/tests/02_graph_rag_baseline.robot">
+<kw name="Load Baseline Markdown Directory" owner="GraphragApiLibrary" type="SETUP">
+<msg time="2026-10-23T07:44:59.701751" level="FAIL">No .md files found in directory: /tmp/tests/data/graph_rag_baseline</msg>
+<msg time="2026-10-23T07:44:59.702221" level="DEBUG">Traceback (most recent call last):
+  File "/tmp/robot-tests/lib/GraphragApiLibrary.py", line 87, in load_baseline_markdown_directory
+    raise AssertionError(f"No .md files found in directory: {directory_path}")
+AssertionError: No .md files found in directory: /tmp/tests/data/graph_rag_baseline</msg>
+<arg>${BASELINE_DATA_DIR}</arg>
+<doc>Loads all .md files in the given directory (sorted alphabetically) into Graphrag.</doc>
+<status status="FAIL" start="2026-10-23T07:44:59.701364" elapsed="0.000898">No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</kw>
+<test id="s1-s1-s2-t1" name="Single-Hop Query: Apollo 11 Command Module Pilot" line="16">
+<doc>Verifies Graphrag accurately answers who piloted the Command Module Columbia and remained in lunar orbit.</doc>
+<tag>graphrag</tag>
+<tag>ragas</tag>
+<tag>single-hop</tag>
+<status status="FAIL" start="2026-10-23T07:44:59.702347" elapsed="0.000444">Parent suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</test>
+<test id="s1-s1-s2-t2" name="Multi-Hop Query: Presidential Goal Fulfilled By Apollo 11 Crew" line="30">
+<doc>Traverses across Project Apollo, JFK, and the Apollo 11 crew to verify multi-hop synthesis.</doc>
+<tag>graphrag</tag>
+<tag>multi-hop</tag>
+<tag>ragas</tag>
+<status status="FAIL" start="2026-10-23T07:44:59.703080" elapsed="0.000477">Parent suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</test>
+<test id="s1-s1-s2-t3" name="Multi-Hop Query: West Point Graduates On Apollo 11" line="44">
+<doc>Synthesizes biographical facts across Buzz Aldrin and Michael Collins markdown documents.</doc>
+<tag>graphrag</tag>
+<tag>multi-hop</tag>
+<tag>ragas</tag>
+<status status="FAIL" start="2026-10-23T07:44:59.703855" elapsed="0.000426">Parent suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</test>
+<kw name="Cleanup Ingested Documents" owner="GraphragApiLibrary" type="TEARDOWN">
+<doc>Deletes all documents ingested during the suite in [Teardown].</doc>
+<status status="PASS" start="2026-10-23T07:44:59.704690" elapsed="0.000107"/>
+</kw>
+<doc>Loads the baseline Apollo 11 markdown dataset into the running Graphrag API, executes single-hop and multi-hop queries, and evaluates AI responses using Ragas.</doc>
+<status status="FAIL" start="2026-10-23T07:44:59.695705" elapsed="0.009130">Suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</suite>
+<suite id="s1-s1-s3" name="03 Graph Rag Bread Api" source="/tmp/robot-tests/tests/03_graph_rag_bread_api.robot">
+<kw name="Load Baseline Markdown Directory" owner="GraphragApiLibrary" type="SETUP">
+<msg time="2026-10-23T07:44:59.708418" level="FAIL">No .md files found in directory: /tmp/tests/data/graph_rag_baseline</msg>
+<msg time="2026-10-23T07:44:59.708694" level="DEBUG">Traceback (most recent call last):
+  File "/tmp/robot-tests/lib/GraphragApiLibrary.py", line 87, in load_baseline_markdown_directory
+    raise AssertionError(f"No .md files found in directory: {directory_path}")
+AssertionError: No .md files found in directory: /tmp/tests/data/graph_rag_baseline</msg>
+<arg>${BASELINE_DATA_DIR}</arg>
+<doc>Loads all .md files in the given directory (sorted alphabetically) into Graphrag.</doc>
+<status status="FAIL" start="2026-10-23T07:44:59.708138" elapsed="0.000593">No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</kw>
+<test id="s1-s1-s3-t1" name="BREAD Operations: Documents Resource" line="16">
+<doc>Exercises Browse, Read, Edit, Add, Delete across /documents endpoints.</doc>
+<tag>bread</tag>
+<tag>documents</tag>
+<tag>graphrag</tag>
+<status status="FAIL" start="2026-10-23T07:44:59.708821" elapsed="0.000360">Parent suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</test>
+<test id="s1-s1-s3-t2" name="BREAD Operations: Nodes Resource" line="41">
+<doc>Exercises Browse, Read, Edit, Add, Delete across /nodes endpoints.</doc>
+<tag>bread</tag>
+<tag>graphrag</tag>
+<tag>nodes</tag>
+<status status="FAIL" start="2026-10-23T07:44:59.709453" elapsed="0.000346">Parent suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</test>
+<test id="s1-s1-s3-t3" name="BREAD Operations: Edges Resource" line="66">
+<doc>Exercises Browse, Read, Edit, Add, Delete across /edges endpoints.</doc>
+<tag>bread</tag>
+<tag>edges</tag>
+<tag>graphrag</tag>
+<status status="FAIL" start="2026-10-23T07:44:59.710061" elapsed="0.000399">Parent suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</test>
+<test id="s1-s1-s3-t4" name="BREAD Operations: Communities Resource" line="88">
+<doc>Exercises Browse, Read, Edit, and Rebuild across /communities endpoints.</doc>
+<tag>bread</tag>
+<tag>communities</tag>
+<tag>graphrag</tag>
+<status status="FAIL" start="2026-10-23T07:44:59.710912" elapsed="0.000673">Parent suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</test>
+<test id="s1-s1-s3-t5" name="BREAD Impact On Graphrag Query Answering" line="109">
+<doc>Verifies that adding a new node and edge via BREAD immediately reflects in subsequent /query answers.</doc>
+<tag>bread</tag>
+<tag>graphrag</tag>
+<tag>query</tag>
+<status status="FAIL" start="2026-10-23T07:44:59.712005" elapsed="0.000453">Parent suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</test>
+<kw name="Cleanup Ingested Documents" owner="GraphragApiLibrary" type="TEARDOWN">
+<doc>Deletes all documents ingested during the suite in [Teardown].</doc>
+<status status="PASS" start="2026-10-23T07:44:59.712885" elapsed="0.000126"/>
+</kw>
+<doc>End-to-End integration test suite for Graph RAG Browse, Read, Edit, Add, Delete (BREAD) REST APIs.</doc>
+<status status="FAIL" start="2026-10-23T07:44:59.705473" elapsed="0.007576">Suite setup failed:
+No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+</suite>
+<status status="FAIL" start="2026-10-23T07:44:59.607611" elapsed="0.106094"/>
+</suite>
+<status status="FAIL" start="2026-10-23T07:44:59.566141" elapsed="0.148056"/>
+</suite>
+<statistics>
+<total>
+<stat pass="4" fail="8" skip="0">All Tests</stat>
+</total>
+<tag>
+<stat pass="1" fail="0" skip="0">api</stat>
+<stat pass="0" fail="5" skip="0">bread</stat>
+<stat pass="0" fail="1" skip="0">communities</stat>
+<stat pass="0" fail="1" skip="0">documents</stat>
+<stat pass="0" fail="1" skip="0">edges</stat>
+<stat pass="1" fail="0" skip="0">foundation</stat>
+<stat pass="0" fail="8" skip="0">graphrag</stat>
+<stat pass="3" fail="0" skip="0">hams</stat>
+<stat pass="2" fail="0" skip="0">health</stat>
+<stat pass="1" fail="0" skip="0">metrics</stat>
+<stat pass="0" fail="2" skip="0">multi-hop</stat>
+<stat pass="0" fail="1" skip="0">nodes</stat>
+<stat pass="0" fail="1" skip="0">query</stat>
+<stat pass="0" fail="3" skip="0">ragas</stat>
+<stat pass="0" fail="1" skip="0">single-hop</stat>
+</tag>
+<suite>
+<stat name="Robot-Tests" id="s1" pass="4" fail="8" skip="0">Robot-Tests</stat>
+<stat name="Tests" id="s1-s1" pass="4" fail="8" skip="0">Robot-Tests.Tests</stat>
+<stat name="01 Health And Foundation" id="s1-s1-s1" pass="4" fail="0" skip="0">Robot-Tests.Tests.01 Health And Foundation</stat>
+<stat name="02 Graph Rag Baseline" id="s1-s1-s2" pass="0" fail="3" skip="0">Robot-Tests.Tests.02 Graph Rag Baseline</stat>
+<stat name="03 Graph Rag Bread Api" id="s1-s1-s3" pass="0" fail="5" skip="0">Robot-Tests.Tests.03 Graph Rag Bread Api</stat>
+</suite>
+</statistics>
+<errors>
+</errors>
+</robot>
