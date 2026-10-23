@@ -41,13 +41,13 @@ spec:
               protocol: TCP
           livenessProbe:
             httpGet:
-              path: /health/alive
+              path: /hams/alive
               port: hams
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health/ready
+              path: /hams/ready
               port: hams
             initialDelaySeconds: 5
             periodSeconds: 10
