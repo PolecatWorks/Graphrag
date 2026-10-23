@@ -28,13 +28,17 @@ echo "Backend Pod IP: $BE_POD_IP"
 
 # Prepare test directories inside the runner pod
 kubectl exec $POD_NAME -n $NS -- rm -rf /tmp/robot-tests /tmp/reports /tmp/lib /tmp/tests /tmp/data
-kubectl exec $POD_NAME -n $NS -- mkdir -p /tmp/robot-tests /tmp/reports /tmp/tests /tmp/tests/data/graph_rag_baseline /tmp/lib
+kubectl exec $POD_NAME -n $NS -- mkdir -p /tmp/robot-tests /tmp/reports /tmp/data/graph_rag_baseline /tmp/lib
 
-# Copy test assets and baseline data to preserve relative path ../../tests/data/graph_rag_baseline
+# Copy test assets and baseline data into runner pod
 kubectl cp ./integration-tests/tests $POD_NAME:/tmp/robot-tests -n $NS
 kubectl cp ./integration-tests/lib $POD_NAME:/tmp/robot-tests/lib -n $NS
 kubectl cp ./integration-tests/lib $POD_NAME:/tmp/lib -n $NS
-kubectl cp ./tests/data/graph_rag_baseline $POD_NAME:/tmp/tests/data/graph_rag_baseline -n $NS
+kubectl cp ./integration-tests/data/graph_rag_baseline/. $POD_NAME:/tmp/data/graph_rag_baseline -n $NS
+
+# Also copy into /tmp/tests/data/graph_rag_baseline for backwards compatibility
+kubectl exec $POD_NAME -n $NS -- mkdir -p /tmp/tests/data/graph_rag_baseline
+kubectl cp ./integration-tests/data/graph_rag_baseline/. $POD_NAME:/tmp/tests/data/graph_rag_baseline -n $NS
 
 # Execute Robot tests
 TEST_EXIT_CODE=0
@@ -45,7 +49,7 @@ kubectl exec $POD_NAME -n $NS -- /bin/bash -c "
 
   BE_BASE_URL=\"http://graphrag:80\"
   HAMS_BE_URL=\"http://${BE_POD_IP}:8079\"
-  BASELINE_DATA_DIR=\"/tmp/tests/data/graph_rag_baseline\"
+  BASELINE_DATA_DIR=\"/tmp/data/graph_rag_baseline\"
 
   robot --pythonpath /tmp/robot-tests/lib --pythonpath /tmp/lib \
     --variable BE_BASE_URL:\$BE_BASE_URL \

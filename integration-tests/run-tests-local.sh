@@ -13,7 +13,7 @@ LOCAL_BE_URL="${LOCAL_BE_URL:-http://localhost:8080}"
 LOCAL_HAMS_BE_URL="${LOCAL_HAMS_BE_URL:-http://localhost:8079}"
 LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:11434/v1}"
 LLM_MODEL="${LLM_MODEL:-llama3.1:8b}"
-BASELINE_DATA_DIR="${BASELINE_DATA_DIR:-${REPO_ROOT}/tests/data/graph_rag_baseline}"
+BASELINE_DATA_DIR="${BASELINE_DATA_DIR:-${SCRIPT_DIR}/data/graph_rag_baseline}"
 
 REPORT_DIR="${SCRIPT_DIR}/reports"
 rm -rf "${REPORT_DIR}"
