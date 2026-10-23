@@ -228,7 +228,7 @@ jobs:
 
       - name: Upload Robot Test Results Artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: robot-test-results-pr-${{ env.PR_NUMBER }}
           path: ./robot-results/
