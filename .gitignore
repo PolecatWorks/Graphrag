@@ -1,2 +1,4 @@
 /target
 .tokensave
+target/
+graphrag-container/target/

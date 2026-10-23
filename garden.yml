@@ -142,9 +142,9 @@ spec:
     - "/bin/bash"
     - "-c"
     - |
-      CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
-      MAIN_SHA=$(git log -1 --format=%H origin/main -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml 2>/dev/null || echo "")
-      HAS_UNCOMMITTED=$(git status --porcelain -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+      CONTENT_SHA=$(git log -1 --format=%H -- graphrag-container/ .github/workflows/docker-publish.yml)
+      MAIN_SHA=$(git log -1 --format=%H origin/main -- graphrag-container/ .github/workflows/docker-publish.yml 2>/dev/null || echo "")
+      HAS_UNCOMMITTED=$(git status --porcelain -- graphrag-container/ .github/workflows/docker-publish.yml)
       IMAGE="ghcr.io/polecatworks/graphrag"
       if { [ -n "$HAS_UNCOMMITTED" ] || [ "$CONTENT_SHA" != "$MAIN_SHA" ]; } && [ -n "$CONTENT_SHA" ] && docker manifest inspect "$IMAGE:sha-$CONTENT_SHA" >/dev/null 2>&1; then
         TAG="sha-$CONTENT_SHA"

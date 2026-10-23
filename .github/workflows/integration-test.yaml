@@ -39,20 +39,10 @@ jobs:
           ref: ${{ github.event.merge_group.base_ref || github.ref }}
           filters: |
             backend:
-              - 'src/**'
-              - 'migrations/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'config.yaml'
-              - 'Dockerfile'
+              - 'graphrag-container/**'
               - '.github/workflows/docker-publish.yml'
             run_tests:
-              - 'src/**'
-              - 'migrations/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'config.yaml'
-              - 'Dockerfile'
+              - 'graphrag-container/**'
               - '.github/workflows/docker-publish.yml'
               - 'charts/**'
               - '.github/workflows/helm-ci-pr.yaml'
@@ -91,7 +81,7 @@ jobs:
           echo "ARCH=$(uname -m)" >> $GITHUB_ENV
 
           if [[ "${{ needs.check-paths.outputs.backend }}" == "true" ]]; then
-            CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+            CONTENT_SHA=$(git log -1 --format=%H -- graphrag-container/ .github/workflows/docker-publish.yml)
             echo "GRAPHRAG_IMAGE=ghcr.io/${REPO_LOWER}" >> $GITHUB_ENV
             echo "GRAPHRAG_TAG=sha-$CONTENT_SHA" >> $GITHUB_ENV
           else

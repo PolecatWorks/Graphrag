@@ -28,12 +28,7 @@ jobs:
           ref: ${{ github.event.merge_group.base_ref || github.ref }}
           filters: |
             backend:
-              - 'src/**'
-              - 'migrations/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'config.yaml'
-              - 'Dockerfile'
+              - 'graphrag-container/**'
               - '.github/workflows/docker-publish.yml'
 
   check-image:
@@ -52,7 +47,7 @@ jobs:
       - name: Determine Content SHA
         id: backend-content
         run: |
-          CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+          CONTENT_SHA=$(git log -1 --format=%H -- graphrag-container/ .github/workflows/docker-publish.yml)
           echo "CONTENT_SHA=$CONTENT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Determine Image Name
@@ -107,7 +102,7 @@ jobs:
       - name: Determine Content SHA
         id: backend-content
         run: |
-          CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+          CONTENT_SHA=$(git log -1 --format=%H -- graphrag-container/ .github/workflows/docker-publish.yml)
           echo "Determined content SHA: $CONTENT_SHA"
           echo "CONTENT_SHA=$CONTENT_SHA" >> "$GITHUB_ENV"
 
@@ -145,8 +140,8 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Dockerfile
+          context: graphrag-container
+          file: graphrag-container/Dockerfile
           push: true
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
@@ -194,7 +189,7 @@ jobs:
       - name: Determine Content SHA
         id: backend-content
         run: |
-          CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+          CONTENT_SHA=$(git log -1 --format=%H -- graphrag-container/ .github/workflows/docker-publish.yml)
           echo "CONTENT_SHA=$CONTENT_SHA" >> "$GITHUB_ENV"
 
       - name: Download digests
@@ -257,7 +252,7 @@ jobs:
       - name: Determine Content SHA
         id: backend-content
         run: |
-          CONTENT_SHA=$(git log -1 --format=%H -- src/ migrations/ Cargo.toml Cargo.lock config.yaml Dockerfile .github/workflows/docker-publish.yml)
+          CONTENT_SHA=$(git log -1 --format=%H -- graphrag-container/ .github/workflows/docker-publish.yml)
           echo "CONTENT_SHA=$CONTENT_SHA" >> "$GITHUB_ENV"
 
       - name: Determine Image Name
