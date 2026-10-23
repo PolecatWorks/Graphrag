@@ -183,6 +183,7 @@ sequenceDiagram
 - Deleting a `KnowledgeObject` (`DELETE /nodes/{id}`) must cascade-delete all `GraphTuple` edges where `source_id = id` or `target_id = id` before recomputing Layer 1 communities.
 - Deleting or editing a `Document` (`DELETE /documents/{id}`, `PUT /documents/{id}`) must clean up nodes and edges attributed to that `document_id` and recompute Layer 1 communities.
 - Creating an edge (`POST /edges`) referencing a non-existent `source` or `target` node must fail with a typed `GraphRagError::NodeNotFound(String)` mapped to HTTP `404 Not Found` (unless `auto_create_nodes` is explicitly requested).
+- **Idempotency & Re-Ingestion Safety**: Document creation (`POST /documents`) and automated corpus loaders must execute upsert operations (`ON CONFLICT (id) DO UPDATE` or idempotent re-linking) so automated test suites and merge queue retries can safely re-ingest documents or entities without triggering unique constraint violation failures.
 
 ### 3. Typed Error Handling (`thiserror`)
 - In accordance with [AGENTS.md](../../AGENTS.md), all BREAD operations in `src/graph_rag.rs` must return `Result<T, GraphRagError>` where `GraphRagError` derives `thiserror::Error` (`Result<_, String>` is strictly prohibited).
