@@ -1,4 +1,4 @@
-.PHONY: kill-ports dev watch aad-be-watch migrate test test-robot
+.PHONY: kill-ports dev watch aad-be-watch migrate test test-robot docker build-docker docker-run helm-lint garden-up garden-test
 
 CONFIG_FILE ?= config.yaml
 DATABASE_URL ?= postgres://postgres:mysecretpassword@localhost:5432/graphrag
@@ -11,11 +11,11 @@ kill-ports:
 
 # Starts the backend server in a standard development mode
 dev: kill-ports
-	cargo run -- -c $(CONFIG_FILE)
+	cd graphrag-container && cargo run -- -c $(CONFIG_FILE)
 
 # Starts the backend server with hot-reloading enabled via cargo watch
 watch:
-	cargo watch -x "run -- -c $(CONFIG_FILE)"
+	cd graphrag-container && cargo watch -x "run -- -c $(CONFIG_FILE)"
 
 aad-be-watch: watch
 
@@ -26,11 +26,11 @@ migrate:
 		cargo install sqlx-cli --no-default-features --features rustls,postgres; \
 	fi
 	sqlx database create --database-url $(DATABASE_URL)
-	sqlx migrate run --database-url $(DATABASE_URL)
+	cd graphrag-container && sqlx migrate run --database-url $(DATABASE_URL)
 
 # Runs all unit tests
 test:
-	cargo test -- --test-threads=1
+	cd graphrag-container && cargo test -- --test-threads=1
 
 # Runs Robot Framework + Ragas integration tests against the already-running Graphrag service
 test-robot:
@@ -39,7 +39,7 @@ test-robot:
 # Docker build
 docker: build-docker
 build-docker:
-	docker build -t graphrag:latest .
+	docker build -t graphrag:latest graphrag-container
 
 # Run Docker locally mapping 8080 and 8079
 docker-run:

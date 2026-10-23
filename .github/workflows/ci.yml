@@ -19,13 +19,8 @@ jobs:
           ref: ${{ github.event.merge_group.base_ref || github.ref }}
           filters: |
             backend:
-              - 'src/**'
-              - 'migrations/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'config.yaml'
+              - 'graphrag-container/**'
               - 'Makefile'
-              - 'Dockerfile'
               - '.github/workflows/ci.yml'
             helm:
               - 'charts/**'
@@ -58,14 +53,16 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'graphrag-container -> target'
 
       - name: Run Cargo Check
-        run: cargo check
+        run: cargo check --manifest-path graphrag-container/Cargo.toml
 
       - name: Run Backend Tests
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/graphrag_db
-        run: cargo test -- --test-threads=1
+        run: cargo test --manifest-path graphrag-container/Cargo.toml -- --test-threads=1
 
   helm-lint:
     name: Helm Chart Lint
