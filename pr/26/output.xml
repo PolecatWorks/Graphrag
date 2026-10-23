@@ -1,211 +1,770 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<robot generator="Robot 7.5 (Python 3.14.8 on linux)" generated="2026-10-23T07:44:59.565178" rpa="false" schemaversion="5">
+<robot generator="Robot 7.5 (Python 3.14.8 on linux)" generated="2026-10-23T08:02:36.931448" rpa="false" schemaversion="5">
 <suite id="s1" name="Robot-Tests" source="/tmp/robot-tests">
 <suite id="s1-s1" name="Tests" source="/tmp/robot-tests/tests">
 <suite id="s1-s1-s1" name="01 Health And Foundation" source="/tmp/robot-tests/tests/01_health_and_foundation.robot">
 <test id="s1-s1-s1-t1" name="Verify HaMS Liveness Probe" line="10">
 <kw name="Verify Hams Liveness" owner="GraphragApiLibrary">
-<msg time="2026-10-23T07:44:59.668457" level="DEBUG">Starting new HTTP connection (1): 10.244.8.78:8079</msg>
-<msg time="2026-10-23T07:44:59.671343" level="DEBUG">http://10.244.8.78:8079 "GET /hams/alive HTTP/1.1" 200 29</msg>
+<msg time="2026-10-23T08:02:37.033596" level="DEBUG">Starting new HTTP connection (1): 10.244.8.79:8079</msg>
+<msg time="2026-10-23T08:02:37.036667" level="DEBUG">http://10.244.8.79:8079 "GET /hams/alive HTTP/1.1" 200 29</msg>
 <doc>Verifies that the HaMS /hams/alive endpoint returns HTTP 200.</doc>
-<status status="PASS" start="2026-10-23T07:44:59.667099" elapsed="0.004634"/>
+<status status="PASS" start="2026-10-23T08:02:37.032245" elapsed="0.004859"/>
 </kw>
 <doc>Confirms the HaMS /health/live probe returns HTTP 200 OK.</doc>
 <tag>hams</tag>
 <tag>health</tag>
-<status status="PASS" start="2026-10-23T07:44:59.666269" elapsed="0.005610"/>
+<status status="PASS" start="2026-10-23T08:02:37.031385" elapsed="0.005873"/>
 </test>
 <test id="s1-s1-s1-t2" name="Verify HaMS Readiness Probe" line="15">
 <kw name="Verify Hams Readiness" owner="GraphragApiLibrary">
-<msg time="2026-10-23T07:44:59.673302" level="DEBUG">Starting new HTTP connection (1): 10.244.8.78:8079</msg>
-<msg time="2026-10-23T07:44:59.678652" level="DEBUG">http://10.244.8.78:8079 "GET /hams/ready HTTP/1.1" 200 29</msg>
+<msg time="2026-10-23T08:02:37.038702" level="DEBUG">Starting new HTTP connection (1): 10.244.8.79:8079</msg>
+<msg time="2026-10-23T08:02:37.041164" level="DEBUG">http://10.244.8.79:8079 "GET /hams/ready HTTP/1.1" 200 29</msg>
 <doc>Verifies that the HaMS /hams/ready endpoint returns HTTP 200.</doc>
-<status status="PASS" start="2026-10-23T07:44:59.672607" elapsed="0.006370"/>
+<status status="PASS" start="2026-10-23T08:02:37.037972" elapsed="0.003499"/>
 </kw>
 <doc>Confirms the HaMS /health/ready probe returns HTTP 200 OK after DB and LLM client initialization.</doc>
 <tag>hams</tag>
 <tag>health</tag>
-<status status="PASS" start="2026-10-23T07:44:59.672130" elapsed="0.006991"/>
+<status status="PASS" start="2026-10-23T08:02:37.037490" elapsed="0.004102"/>
 </test>
 <test id="s1-s1-s1-t3" name="Verify HaMS Prometheus Metrics Exposure" line="20">
 <kw name="Verify Hams Metrics" owner="GraphragApiLibrary">
-<msg time="2026-10-23T07:44:59.680338" level="DEBUG">Starting new HTTP connection (1): 10.244.8.78:8079</msg>
-<msg time="2026-10-23T07:44:59.685124" level="DEBUG">http://10.244.8.78:8079 "GET /hams/metrics HTTP/1.1" 200 21</msg>
-<msg time="2026-10-23T07:44:59.685463" level="INFO">${metrics} = No metrics registered</msg>
+<msg time="2026-10-23T08:02:37.042766" level="DEBUG">Starting new HTTP connection (1): 10.244.8.79:8079</msg>
+<msg time="2026-10-23T08:02:37.046043" level="DEBUG">http://10.244.8.79:8079 "GET /hams/metrics HTTP/1.1" 200 21</msg>
+<msg time="2026-10-23T08:02:37.046378" level="INFO">${metrics} = No metrics registered</msg>
 <var>${metrics}</var>
 <doc>Verifies that the HaMS /hams/metrics endpoint returns non-empty Prometheus metrics.</doc>
-<status status="PASS" start="2026-10-23T07:44:59.679762" elapsed="0.005735"/>
+<status status="PASS" start="2026-10-23T08:02:37.042180" elapsed="0.004231"/>
 </kw>
 <kw name="Should Not Be Empty" owner="BuiltIn">
-<msg time="2026-10-23T07:44:59.686067" level="INFO">Length is 21.</msg>
+<msg time="2026-10-23T08:02:37.046973" level="INFO">Length is 21.</msg>
 <arg>${metrics}</arg>
 <doc>Verifies that the given item is not empty.</doc>
-<status status="PASS" start="2026-10-23T07:44:59.685607" elapsed="0.000513"/>
+<status status="PASS" start="2026-10-23T08:02:37.046520" elapsed="0.000507"/>
 </kw>
 <doc>Confirms the HaMS /metrics endpoint exposes Prometheus telemetry.</doc>
 <tag>hams</tag>
 <tag>metrics</tag>
-<status status="PASS" start="2026-10-23T07:44:59.679352" elapsed="0.006871"/>
+<status status="PASS" start="2026-10-23T08:02:37.041804" elapsed="0.005371"/>
 </test>
 <test id="s1-s1-s1-t4" name="Verify Axum Hello Endpoint" line="26">
 <kw name="Get Hello Endpoint" owner="GraphragApiLibrary">
-<msg time="2026-10-23T07:44:59.687462" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
-<msg time="2026-10-23T07:44:59.693744" level="DEBUG">http://graphrag:80 "GET /hello HTTP/1.1" 200 13</msg>
-<msg time="2026-10-23T07:44:59.694077" level="INFO">${body} = Hello, World!</msg>
+<msg time="2026-10-23T08:02:37.048392" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.052879" level="DEBUG">http://graphrag:80 "GET /hello HTTP/1.1" 200 13</msg>
+<msg time="2026-10-23T08:02:37.053219" level="INFO">${body} = Hello, World!</msg>
 <var>${body}</var>
 <doc>Calls GET /hello on the running Graphrag Axum service.</doc>
-<status status="PASS" start="2026-10-23T07:44:59.686772" elapsed="0.007337"/>
+<status status="PASS" start="2026-10-23T08:02:37.047779" elapsed="0.005472"/>
 </kw>
 <kw name="Should Be Equal As Strings" owner="BuiltIn">
-<msg time="2026-10-23T07:44:59.694573" level="DEBUG">Argument types are:
+<msg time="2026-10-23T08:02:37.053675" level="DEBUG">Argument types are:
 &lt;class 'str'&gt;
 &lt;class 'str'&gt;</msg>
 <arg>${body}</arg>
 <arg>Hello, World!</arg>
 <doc>Fails if objects are unequal after converting them to strings.</doc>
-<status status="PASS" start="2026-10-23T07:44:59.694228" elapsed="0.000426"/>
+<status status="PASS" start="2026-10-23T08:02:37.053376" elapsed="0.000367"/>
 </kw>
 <doc>Confirms the primary Axum HTTP router responds on GET /hello.</doc>
 <tag>api</tag>
 <tag>foundation</tag>
-<status status="PASS" start="2026-10-23T07:44:59.686411" elapsed="0.008349"/>
+<status status="PASS" start="2026-10-23T08:02:37.047360" elapsed="0.006490"/>
 </test>
 <doc>Verifies HaMS sidecar health/metrics probes and foundational Axum endpoints on a running Graphrag instance.</doc>
-<status status="PASS" start="2026-10-23T07:44:59.608604" elapsed="0.086575"/>
+<status status="PASS" start="2026-10-23T08:02:36.973930" elapsed="0.080333"/>
 </suite>
 <suite id="s1-s1-s2" name="02 Graph Rag Baseline" source="/tmp/robot-tests/tests/02_graph_rag_baseline.robot">
 <kw name="Load Baseline Markdown Directory" owner="GraphragApiLibrary" type="SETUP">
-<msg time="2026-10-23T07:44:59.701751" level="FAIL">No .md files found in directory: /tmp/tests/data/graph_rag_baseline</msg>
-<msg time="2026-10-23T07:44:59.702221" level="DEBUG">Traceback (most recent call last):
-  File "/tmp/robot-tests/lib/GraphragApiLibrary.py", line 87, in load_baseline_markdown_directory
-    raise AssertionError(f"No .md files found in directory: {directory_path}")
-AssertionError: No .md files found in directory: /tmp/tests/data/graph_rag_baseline</msg>
+<msg time="2026-10-23T08:02:37.061274" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.139984" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-10-23T08:02:37.140970" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.293896" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-10-23T08:02:37.294858" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.412241" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 96</msg>
+<msg time="2026-10-23T08:02:37.413146" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.538049" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 100</msg>
+<msg time="2026-10-23T08:02:37.538959" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.683909" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
 <arg>${BASELINE_DATA_DIR}</arg>
 <doc>Loads all .md files in the given directory (sorted alphabetically) into Graphrag.</doc>
-<status status="FAIL" start="2026-10-23T07:44:59.701364" elapsed="0.000898">No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:37.060364" elapsed="0.623900"/>
 </kw>
 <test id="s1-s1-s2-t1" name="Single-Hop Query: Apollo 11 Command Module Pilot" line="16">
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-10-23T08:02:37.685184" level="INFO">${question} = Who flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon?</msg>
+<var>${question}</var>
+<arg>Who flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon?</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.684857" elapsed="0.000357"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-10-23T08:02:37.685597" level="INFO">${reference} = Michael Collins flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon.</msg>
+<var>${reference}</var>
+<arg>Michael Collins flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon.</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.685331" elapsed="0.000296"/>
+</kw>
+<kw name="Ask Graphrag Question" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:37.686368" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.750457" level="DEBUG">http://graphrag:80 "POST /query HTTP/1.1" 200 23105</msg>
+<msg time="2026-10-23T08:02:37.751554" level="INFO">${result} = {'answer': "[Project Apollo] Kennedy's goal was accomplished on the Apollo 11 mission when astronauts Neil Armstrong and Buzz Aldrin landed their Apollo Lunar Module (LM) on July 20, 1969, and walked ...</msg>
+<var>${result}</var>
+<arg>${question}</arg>
+<doc>Sends a natural-language question to POST /query and returns {'answer': ..., 'contexts': [...]}.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.685725" elapsed="0.065870"/>
+</kw>
+<kw name="Evaluate Rag Response With Ragas" owner="RagasEvalLibrary">
+<msg time="2026-10-23T08:02:37.756192" level="INFO">Ragas library fallback scorer engaged (No module named 'langchain_openai')
+Ragas Evaluation Scores for question='Who flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon?': {'faithfulness': 1.0, 'factual_correctness': 1.0, 'response_relevancy': 1.0, 'context_recall': 1.0}</msg>
+<arg>question=${question}</arg>
+<arg>actual_answer=${result}[answer]</arg>
+<arg>retrieved_contexts=${result}[contexts]</arg>
+<arg>reference_answer=${reference}</arg>
+<arg>min_faithfulness=0.70</arg>
+<arg>min_factual_correctness=0.70</arg>
+<doc>Grades an AI response from Graphrag using Ragas metrics and asserts minimum thresholds.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.751725" elapsed="0.004543"/>
+</kw>
 <doc>Verifies Graphrag accurately answers who piloted the Command Module Columbia and remained in lunar orbit.</doc>
 <tag>graphrag</tag>
 <tag>ragas</tag>
 <tag>single-hop</tag>
-<status status="FAIL" start="2026-10-23T07:44:59.702347" elapsed="0.000444">Parent suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:37.684364" elapsed="0.072030"/>
 </test>
 <test id="s1-s1-s2-t2" name="Multi-Hop Query: Presidential Goal Fulfilled By Apollo 11 Crew" line="30">
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-10-23T08:02:37.757463" level="INFO">${question} = Which US President proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and what university did the Lunar Module Eagle pilot earn his doctor...</msg>
+<var>${question}</var>
+<arg>Which US President proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and what university did the Lunar Module Eagle pilot earn his doctorate from?</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.757140" elapsed="0.000355"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-10-23T08:02:37.757879" level="INFO">${reference} = President John F. Kennedy proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and the Lunar Module Eagle pilot Buzz Aldrin earned his Docto...</msg>
+<var>${reference}</var>
+<arg>President John F. Kennedy proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and the Lunar Module Eagle pilot Buzz Aldrin earned his Doctor of Science doctorate from the Massachusetts Institute of Technology (MIT).</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.757613" elapsed="0.000296"/>
+</kw>
+<kw name="Ask Graphrag Question" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:37.758647" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.774249" level="DEBUG">http://graphrag:80 "POST /query HTTP/1.1" 200 22933</msg>
+<msg time="2026-10-23T08:02:37.775064" level="INFO">${result} = {'answer': '[Project Apollo] Kennedy\'s goal was accomplished on the Apollo 11 mission when astronauts Neil Armstrong and Buzz Aldrin landed their Apollo Lunar Module (LM) on July 20, 1969, and walked...</msg>
+<var>${result}</var>
+<arg>${question}</arg>
+<doc>Sends a natural-language question to POST /query and returns {'answer': ..., 'contexts': [...]}.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.758009" elapsed="0.017093"/>
+</kw>
+<kw name="Evaluate Rag Response With Ragas" owner="RagasEvalLibrary">
+<msg time="2026-10-23T08:02:37.779178" level="INFO">Ragas library fallback scorer engaged (No module named 'langchain_openai')
+Ragas Evaluation Scores for question='Which US President proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and what university did the Lunar Module Eagle pilot earn his doctorate from?': {'faithfulness': 1.0, 'factual_correctness': 1.0, 'response_relevancy': 1.0, 'context_recall': 1.0}</msg>
+<arg>question=${question}</arg>
+<arg>actual_answer=${result}[answer]</arg>
+<arg>retrieved_contexts=${result}[contexts]</arg>
+<arg>reference_answer=${reference}</arg>
+<arg>min_faithfulness=0.70</arg>
+<arg>min_factual_correctness=0.70</arg>
+<doc>Grades an AI response from Graphrag using Ragas metrics and asserts minimum thresholds.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.775247" elapsed="0.003990"/>
+</kw>
 <doc>Traverses across Project Apollo, JFK, and the Apollo 11 crew to verify multi-hop synthesis.</doc>
 <tag>graphrag</tag>
 <tag>multi-hop</tag>
 <tag>ragas</tag>
-<status status="FAIL" start="2026-10-23T07:44:59.703080" elapsed="0.000477">Parent suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:37.756601" elapsed="0.022755"/>
 </test>
 <test id="s1-s1-s2-t3" name="Multi-Hop Query: West Point Graduates On Apollo 11" line="44">
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-10-23T08:02:37.780327" level="INFO">${question} = Which Apollo 11 astronauts graduated from the United States Military Academy at West Point, and in what years did they graduate?</msg>
+<var>${question}</var>
+<arg>Which Apollo 11 astronauts graduated from the United States Military Academy at West Point, and in what years did they graduate?</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.779987" elapsed="0.000370"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-10-23T08:02:37.780733" level="INFO">${reference} = Buzz Aldrin and Michael Collins both graduated from the United States Military Academy at West Point; Buzz Aldrin graduated in 1951 and Michael Collins graduated in 1952.</msg>
+<var>${reference}</var>
+<arg>Buzz Aldrin and Michael Collins both graduated from the United States Military Academy at West Point; Buzz Aldrin graduated in 1951 and Michael Collins graduated in 1952.</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.780471" elapsed="0.000291"/>
+</kw>
+<kw name="Ask Graphrag Question" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:37.781497" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.796678" level="DEBUG">http://graphrag:80 "POST /query HTTP/1.1" 200 22920</msg>
+<msg time="2026-10-23T08:02:37.797749" level="INFO">${result} = {'answer': "After graduating from the United States Military Academy at West Point in 1951, he was commissioned into the United States Air Force and flew 66 combat missions in the Korean War. [Project...</msg>
+<var>${result}</var>
+<arg>${question}</arg>
+<doc>Sends a natural-language question to POST /query and returns {'answer': ..., 'contexts': [...]}.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.780861" elapsed="0.016929"/>
+</kw>
+<kw name="Evaluate Rag Response With Ragas" owner="RagasEvalLibrary">
+<msg time="2026-10-23T08:02:37.801815" level="INFO">Ragas library fallback scorer engaged (No module named 'langchain_openai')
+Ragas Evaluation Scores for question='Which Apollo 11 astronauts graduated from the United States Military Academy at West Point, and in what years did they graduate?': {'faithfulness': 1.0, 'factual_correctness': 1.0, 'response_relevancy': 1.0, 'context_recall': 1.0}</msg>
+<arg>question=${question}</arg>
+<arg>actual_answer=${result}[answer]</arg>
+<arg>retrieved_contexts=${result}[contexts]</arg>
+<arg>reference_answer=${reference}</arg>
+<arg>min_faithfulness=0.70</arg>
+<arg>min_factual_correctness=0.70</arg>
+<doc>Grades an AI response from Graphrag using Ragas metrics and asserts minimum thresholds.</doc>
+<status status="PASS" start="2026-10-23T08:02:37.797926" elapsed="0.003946"/>
+</kw>
 <doc>Synthesizes biographical facts across Buzz Aldrin and Michael Collins markdown documents.</doc>
 <tag>graphrag</tag>
 <tag>multi-hop</tag>
 <tag>ragas</tag>
-<status status="FAIL" start="2026-10-23T07:44:59.703855" elapsed="0.000426">Parent suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:37.779537" elapsed="0.022452"/>
 </test>
 <kw name="Cleanup Ingested Documents" owner="GraphragApiLibrary" type="TEARDOWN">
+<msg time="2026-10-23T08:02:37.802942" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.818244" level="DEBUG">http://graphrag:80 "DELETE /documents/05_john_f_kennedy.md HTTP/1.1" 204 0</msg>
+<msg time="2026-10-23T08:02:37.819087" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.833152" level="DEBUG">http://graphrag:80 "DELETE /documents/04_michael_collins.md HTTP/1.1" 204 0</msg>
+<msg time="2026-10-23T08:02:37.834017" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.847547" level="DEBUG">http://graphrag:80 "DELETE /documents/03_buzz_aldrin.md HTTP/1.1" 204 0</msg>
+<msg time="2026-10-23T08:02:37.848381" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.860056" level="DEBUG">http://graphrag:80 "DELETE /documents/02_neil_armstrong.md HTTP/1.1" 204 0</msg>
+<msg time="2026-10-23T08:02:37.860746" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.873598" level="DEBUG">http://graphrag:80 "DELETE /documents/01_apollo_program.md HTTP/1.1" 204 0</msg>
 <doc>Deletes all documents ingested during the suite in [Teardown].</doc>
-<status status="PASS" start="2026-10-23T07:44:59.704690" elapsed="0.000107"/>
+<status status="PASS" start="2026-10-23T08:02:37.802348" elapsed="0.071587"/>
 </kw>
 <doc>Loads the baseline Apollo 11 markdown dataset into the running Graphrag API, executes single-hop and multi-hop queries, and evaluates AI responses using Ragas.</doc>
-<status status="FAIL" start="2026-10-23T07:44:59.695705" elapsed="0.009130">Suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:37.054829" elapsed="0.819166"/>
 </suite>
 <suite id="s1-s1-s3" name="03 Graph Rag Bread Api" source="/tmp/robot-tests/tests/03_graph_rag_bread_api.robot">
 <kw name="Load Baseline Markdown Directory" owner="GraphragApiLibrary" type="SETUP">
-<msg time="2026-10-23T07:44:59.708418" level="FAIL">No .md files found in directory: /tmp/tests/data/graph_rag_baseline</msg>
-<msg time="2026-10-23T07:44:59.708694" level="DEBUG">Traceback (most recent call last):
-  File "/tmp/robot-tests/lib/GraphragApiLibrary.py", line 87, in load_baseline_markdown_directory
-    raise AssertionError(f"No .md files found in directory: {directory_path}")
-AssertionError: No .md files found in directory: /tmp/tests/data/graph_rag_baseline</msg>
+<msg time="2026-10-23T08:02:37.877832" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:37.956679" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-10-23T08:02:37.957590" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.038016" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-10-23T08:02:38.039050" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.157720" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 96</msg>
+<msg time="2026-10-23T08:02:38.158631" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.292716" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 100</msg>
+<msg time="2026-10-23T08:02:38.293684" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.443208" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
 <arg>${BASELINE_DATA_DIR}</arg>
 <doc>Loads all .md files in the given directory (sorted alphabetically) into Graphrag.</doc>
-<status status="FAIL" start="2026-10-23T07:44:59.708138" elapsed="0.000593">No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:37.877005" elapsed="0.566572"/>
 </kw>
 <test id="s1-s1-s3-t1" name="BREAD Operations: Documents Resource" line="16">
+<kw name="Browse Documents" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.444880" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.452341" level="DEBUG">http://graphrag:80 "GET /documents?limit=10&amp;offset=0 HTTP/1.1" 200 4930</msg>
+<msg time="2026-10-23T08:02:38.452827" level="INFO">${docs} = {'items': [{'id': '01_apollo_program.md', 'filename': '01_apollo_program.md', 'content': '# Project Apollo\n\nThe Apollo program, also known as Project Apollo, was the third United States human spacef...</msg>
+<var>${docs}</var>
+<arg>limit=10</arg>
+<doc>Calls GET /documents.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.444141" elapsed="0.008720"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>${docs}[total] &gt;= 5</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.453002" elapsed="0.000607"/>
+</kw>
+<kw name="Read Document" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.454276" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.468953" level="DEBUG">http://graphrag:80 "GET /documents/04_michael_collins.md HTTP/1.1" 200 1683</msg>
+<msg time="2026-10-23T08:02:38.469349" level="INFO">${doc_resp} = {'document': {'id': '04_michael_collins.md', 'filename': '04_michael_collins.md', 'content': "# Michael Collins (astronaut)\n\nMichael Collins (October 31, 1930 – April 28, 2021) was an American astro...</msg>
+<var>${doc_resp}</var>
+<arg>04_michael_collins.md</arg>
+<doc>Calls GET /documents/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.453709" elapsed="0.015674"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-10-23T08:02:38.469845" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${doc_resp}[document][id]</arg>
+<arg>04_michael_collins.md</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.469519" elapsed="0.000396"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${doc_resp}[document][content]</arg>
+<arg>Michael Collins</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.470035" elapsed="0.000334"/>
+</kw>
+<kw name="Add Document" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.471077" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.633456" level="DEBUG">http://graphrag:80 "POST /documents HTTP/1.1" 201 99</msg>
+<msg time="2026-10-23T08:02:38.633855" level="INFO">${add_resp} = {'document_id': 'temp_apollo_bread.md', 'chunks_processed': 1, 'nodes_extracted': 1, 'edges_extracted': 0}</msg>
+<var>${add_resp}</var>
+<arg>filename=temp_apollo_bread.md</arg>
+<arg>content=# Apollo Bread Test\n\nApollo Bread Test verifies document BREAD.</arg>
+<doc>Calls POST /documents.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.470467" elapsed="0.163422"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-10-23T08:02:38.634343" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${add_resp}[document_id]</arg>
+<arg>temp_apollo_bread.md</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.634033" elapsed="0.000367"/>
+</kw>
+<kw name="Edit Document" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.635198" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.771634" level="DEBUG">http://graphrag:80 "PUT /documents/temp_apollo_bread.md HTTP/1.1" 200 0</msg>
+<arg>doc_id=temp_apollo_bread.md</arg>
+<arg>content=# Apollo Bread Test Updated\n\nApollo Bread Test updated content.</arg>
+<doc>Calls PUT /documents/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.634494" elapsed="0.137468"/>
+</kw>
+<kw name="Read Document" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.772729" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.784674" level="DEBUG">http://graphrag:80 "GET /documents/temp_apollo_bread.md HTTP/1.1" 200 288</msg>
+<msg time="2026-10-23T08:02:38.785087" level="INFO">${read_updated} = {'document': {'id': 'temp_apollo_bread.md', 'filename': 'temp_apollo_bread.md', 'content': '# Apollo Bread Test Updated\n\nApollo Bread Test updated content.', 'updated_at': '2026-10-23 08:02:39.09016...</msg>
+<var>${read_updated}</var>
+<arg>temp_apollo_bread.md</arg>
+<doc>Calls GET /documents/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.772100" elapsed="0.013020"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${read_updated}[document][content]</arg>
+<arg>updated content</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.785269" elapsed="0.000366"/>
+</kw>
+<kw name="Delete Document" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.786475" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.799496" level="DEBUG">http://graphrag:80 "DELETE /documents/temp_apollo_bread.md HTTP/1.1" 204 0</msg>
+<arg>temp_apollo_bread.md</arg>
+<doc>Calls DELETE /documents/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.785735" elapsed="0.014096"/>
+</kw>
+<kw name="Read Document" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.800639" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.807374" level="DEBUG">http://graphrag:80 "GET /documents/temp_apollo_bread.md HTTP/1.1" 404 52</msg>
+<arg>temp_apollo_bread.md</arg>
+<arg>expected_status=404</arg>
+<doc>Calls GET /documents/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.799958" elapsed="0.007687"/>
+</kw>
 <doc>Exercises Browse, Read, Edit, Add, Delete across /documents endpoints.</doc>
 <tag>bread</tag>
 <tag>documents</tag>
 <tag>graphrag</tag>
-<status status="FAIL" start="2026-10-23T07:44:59.708821" elapsed="0.000360">Parent suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:38.443674" elapsed="0.364092"/>
 </test>
 <test id="s1-s1-s3-t2" name="BREAD Operations: Nodes Resource" line="41">
+<kw name="Browse Nodes" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.809137" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.819092" level="DEBUG">http://graphrag:80 "GET /nodes?limit=10&amp;offset=0 HTTP/1.1" 200 21963</msg>
+<msg time="2026-10-23T08:02:38.820233" level="INFO">${nodes} = {'items': [{'id': 'apollo_11', 'label': 'Mission', 'description': "[Project Apollo] Kennedy's goal was accomplished on the Apollo 11 mission when astronauts Neil Armstrong and Buzz Aldrin landed their...</msg>
+<var>${nodes}</var>
+<arg>limit=10</arg>
+<doc>Calls GET /nodes.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.808463" elapsed="0.011809"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>${nodes}[total] &gt;= 1</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.820422" elapsed="0.000420"/>
+</kw>
+<kw name="Read Node" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.821521" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.835101" level="DEBUG">http://graphrag:80 "GET /nodes/michael_collins HTTP/1.1" 200 3164</msg>
+<msg time="2026-10-23T08:02:38.835679" level="INFO">${node} = {'incoming_edges': [{'predicate': 'SUMMARIZES', 'source_id': 'community_1'}, {'predicate': 'MENTIONS', 'source_id': 'project_apollo'}, {'predicate': 'MENTIONS', 'source_id': 'neil_armstrong'}], 'node'...</msg>
+<var>${node}</var>
+<arg>michael_collins</arg>
+<doc>Calls GET /nodes/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.820940" elapsed="0.014775"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-10-23T08:02:38.836165" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${node}[node][id]</arg>
+<arg>michael_collins</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.835856" elapsed="0.000368"/>
+</kw>
+<kw name="Add Node" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.836970" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.845900" level="DEBUG">http://graphrag:80 "POST /nodes HTTP/1.1" 201 0</msg>
+<arg>node_id=gene_kranz</arg>
+<arg>label=FlightDirector</arg>
+<arg>description=Gene Kranz was the Apollo 11 lead flight director in Mission Control.</arg>
+<doc>Calls POST /nodes.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.836319" elapsed="0.009917"/>
+</kw>
+<kw name="Read Node" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.847014" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.859423" level="DEBUG">http://graphrag:80 "GET /nodes/gene_kranz HTTP/1.1" 200 774</msg>
+<msg time="2026-10-23T08:02:38.859890" level="INFO">${new_node} = {'incoming_edges': [], 'node': {'description': 'Gene Kranz was the Apollo 11 lead flight director in Mission Control.', 'document_id': None, 'embedding': [0.0, -0.21442300081253052, 0.0, -0.2144230008...</msg>
+<var>${new_node}</var>
+<arg>gene_kranz</arg>
+<doc>Calls GET /nodes/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.846379" elapsed="0.013549"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-10-23T08:02:38.860408" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${new_node}[node][label]</arg>
+<arg>FlightDirector</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.860076" elapsed="0.000393"/>
+</kw>
+<kw name="Edit Node" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.861212" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.873736" level="DEBUG">http://graphrag:80 "PUT /nodes/gene_kranz HTTP/1.1" 200 0</msg>
+<arg>node_id=gene_kranz</arg>
+<arg>description=Gene Kranz served as NASA Flight Director for Gemini and Apollo missions.</arg>
+<doc>Calls PUT /nodes/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.860568" elapsed="0.013510"/>
+</kw>
+<kw name="Read Node" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.874867" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.884265" level="DEBUG">http://graphrag:80 "GET /nodes/gene_kranz HTTP/1.1" 200 797</msg>
+<msg time="2026-10-23T08:02:38.884755" level="INFO">${edited_node} = {'incoming_edges': [], 'node': {'description': 'Gene Kranz served as NASA Flight Director for Gemini and Apollo missions.', 'document_id': None, 'embedding': [0.0, -0.2156659960746765, 0.0, -0.2156659...</msg>
+<var>${edited_node}</var>
+<arg>gene_kranz</arg>
+<doc>Calls GET /nodes/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.874225" elapsed="0.010569"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${edited_node}[node][description]</arg>
+<arg>Gemini and Apollo missions</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.884950" elapsed="0.000385"/>
+</kw>
+<kw name="Delete Node" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.886046" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.896550" level="DEBUG">http://graphrag:80 "DELETE /nodes/gene_kranz HTTP/1.1" 204 0</msg>
+<arg>gene_kranz</arg>
+<doc>Calls DELETE /nodes/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.885441" elapsed="0.011407"/>
+</kw>
+<kw name="Read Node" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.897598" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.904219" level="DEBUG">http://graphrag:80 "GET /nodes/gene_kranz HTTP/1.1" 404 38</msg>
+<arg>gene_kranz</arg>
+<arg>expected_status=404</arg>
+<doc>Calls GET /nodes/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.896975" elapsed="0.007523"/>
+</kw>
 <doc>Exercises Browse, Read, Edit, Add, Delete across /nodes endpoints.</doc>
 <tag>bread</tag>
 <tag>graphrag</tag>
 <tag>nodes</tag>
-<status status="FAIL" start="2026-10-23T07:44:59.709453" elapsed="0.000346">Parent suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:38.807999" elapsed="0.096621"/>
 </test>
 <test id="s1-s1-s3-t3" name="BREAD Operations: Edges Resource" line="66">
+<kw name="Browse Edges" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.905865" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.915072" level="DEBUG">http://graphrag:80 "GET /edges?limit=10&amp;offset=0 HTTP/1.1" 200 1110</msg>
+<msg time="2026-10-23T08:02:38.915466" level="INFO">${edges} = {'items': [{'source': 'buzz_aldrin', 'predicate': 'MENTIONS', 'target': 'apollo_11', 'document_id': '03_buzz_aldrin.md'}, {'source': 'buzz_aldrin', 'predicate': 'MENTIONS', 'target': 'lunar_module_eag...</msg>
+<var>${edges}</var>
+<arg>limit=10</arg>
+<doc>Calls GET /edges.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.905210" elapsed="0.010289"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>${edges}[total] &gt;= 1</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.915632" elapsed="0.000394"/>
+</kw>
+<kw name="Add Edge" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.916737" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.937658" level="DEBUG">http://graphrag:80 "POST /edges HTTP/1.1" 201 0</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=PILOTED_MISSION</arg>
+<arg>target=apollo_11</arg>
+<doc>Calls POST /edges.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.916125" elapsed="0.021871"/>
+</kw>
+<kw name="Read Edge" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.938783" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.951238" level="DEBUG">http://graphrag:80 "GET /edges/michael_collins/PILOTED_MISSION/apollo_11 HTTP/1.1" 200 217</msg>
+<msg time="2026-10-23T08:02:38.951633" level="INFO">${edge} = {'edge': {'document_id': None, 'predicate': 'PILOTED_MISSION', 'source': 'michael_collins', 'target': 'apollo_11'}, 'source_node': {'id': 'michael_collins', 'label': 'Astronaut'}, 'target_node': {'id'...</msg>
+<var>${edge}</var>
+<arg>source=michael_collins</arg>
+<arg>predicate=PILOTED_MISSION</arg>
+<arg>target=apollo_11</arg>
+<doc>Calls GET /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.938133" elapsed="0.013535"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-10-23T08:02:38.952121" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${edge}[edge][predicate]</arg>
+<arg>PILOTED_MISSION</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.951812" elapsed="0.000368"/>
+</kw>
+<kw name="Edit Edge" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.952924" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.968670" level="DEBUG">http://graphrag:80 "PUT /edges/michael_collins/PILOTED_MISSION/apollo_11 HTTP/1.1" 200 0</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=PILOTED_MISSION</arg>
+<arg>target=apollo_11</arg>
+<arg>new_predicate=COMMAND_MODULE_PILOT_FOR</arg>
+<doc>Calls PUT /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.952275" elapsed="0.016749"/>
+</kw>
+<kw name="Read Edge" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.969861" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.976947" level="DEBUG">http://graphrag:80 "GET /edges/michael_collins/PILOTED_MISSION/apollo_11 HTTP/1.1" 404 71</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=PILOTED_MISSION</arg>
+<arg>target=apollo_11</arg>
+<arg>expected_status=404</arg>
+<doc>Calls GET /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.969170" elapsed="0.008057"/>
+</kw>
+<kw name="Read Edge" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.977925" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.988868" level="DEBUG">http://graphrag:80 "GET /edges/michael_collins/COMMAND_MODULE_PILOT_FOR/apollo_11 HTTP/1.1" 200 226</msg>
+<msg time="2026-10-23T08:02:38.989196" level="INFO">${updated_edge} = {'edge': {'document_id': None, 'predicate': 'COMMAND_MODULE_PILOT_FOR', 'source': 'michael_collins', 'target': 'apollo_11'}, 'source_node': {'id': 'michael_collins', 'label': 'Astronaut'}, 'target_nod...</msg>
+<var>${updated_edge}</var>
+<arg>source=michael_collins</arg>
+<arg>predicate=COMMAND_MODULE_PILOT_FOR</arg>
+<arg>target=apollo_11</arg>
+<doc>Calls GET /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.977346" elapsed="0.011883"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-10-23T08:02:38.989662" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${updated_edge}[edge][predicate]</arg>
+<arg>COMMAND_MODULE_PILOT_FOR</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.989355" elapsed="0.000363"/>
+</kw>
+<kw name="Delete Edge" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.990393" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:38.998698" level="DEBUG">http://graphrag:80 "DELETE /edges/michael_collins/COMMAND_MODULE_PILOT_FOR/apollo_11 HTTP/1.1" 204 0</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=COMMAND_MODULE_PILOT_FOR</arg>
+<arg>target=apollo_11</arg>
+<doc>Calls DELETE /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.989813" elapsed="0.009216"/>
+</kw>
+<kw name="Read Edge" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:38.999891" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.008311" level="DEBUG">http://graphrag:80 "GET /edges/michael_collins/COMMAND_MODULE_PILOT_FOR/apollo_11 HTTP/1.1" 404 80</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=COMMAND_MODULE_PILOT_FOR</arg>
+<arg>target=apollo_11</arg>
+<arg>expected_status=404</arg>
+<doc>Calls GET /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-10-23T08:02:38.999188" elapsed="0.009477"/>
+</kw>
 <doc>Exercises Browse, Read, Edit, Add, Delete across /edges endpoints.</doc>
 <tag>bread</tag>
 <tag>edges</tag>
 <tag>graphrag</tag>
-<status status="FAIL" start="2026-10-23T07:44:59.710061" elapsed="0.000399">Parent suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:38.904806" elapsed="0.104000"/>
 </test>
 <test id="s1-s1-s3-t4" name="BREAD Operations: Communities Resource" line="88">
+<kw name="Rebuild Communities" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.010129" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.040107" level="DEBUG">http://graphrag:80 "POST /communities/rebuild HTTP/1.1" 200 11047</msg>
+<msg time="2026-10-23T08:02:39.040734" level="INFO">${rebuilt} = [{'id': 'community_1', 'label': 'CommunitySummary', 'description': 'Community community_1 summary covering [apollo_11, buzz_aldrin, command_module_columbia, john_f_kennedy, lunar_module_eagle, massach...</msg>
+<var>${rebuilt}</var>
+<doc>Calls POST /communities/rebuild.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.009465" elapsed="0.031305"/>
+</kw>
+<kw name="Should Not Be Empty" owner="BuiltIn">
+<msg time="2026-10-23T08:02:39.041219" level="INFO">Length is 1.</msg>
+<arg>${rebuilt}</arg>
+<doc>Verifies that the given item is not empty.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.040896" elapsed="0.000372"/>
+</kw>
+<kw name="Browse Communities" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.041988" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.052411" level="DEBUG">http://graphrag:80 "GET /communities?limit=10&amp;offset=0 HTTP/1.1" 200 10309</msg>
+<msg time="2026-10-23T08:02:39.053012" level="INFO">${comms} = {'items': [{'description': 'Community community_1 summary covering [apollo_11, buzz_aldrin, command_module_columbia, john_f_kennedy, lunar_module_eagle, massachusetts_institute_of_technology, michael_...</msg>
+<var>${comms}</var>
+<arg>limit=10</arg>
+<doc>Calls GET /communities.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.041363" elapsed="0.011689"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>${comms}[total] &gt;= 1</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.053210" elapsed="0.000411"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-10-23T08:02:39.054040" level="INFO">${first_id} = community_1</msg>
+<var>${first_id}</var>
+<arg>${comms}[items][0][id]</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.053741" elapsed="0.000326"/>
+</kw>
+<kw name="Read Community" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.054773" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.068912" level="DEBUG">http://graphrag:80 "GET /communities/community_1 HTTP/1.1" 200 14135</msg>
+<msg time="2026-10-23T08:02:39.069718" level="INFO">${comm} = {'edges': [{'document_id': None, 'predicate': 'MENTIONS', 'source': 'michael_collins', 'target': 'nasa'}, {'document_id': None, 'predicate': 'MENTIONS', 'source': 'michael_collins', 'target': 'neil_ar...</msg>
+<var>${comm}</var>
+<arg>${first_id}</arg>
+<doc>Calls GET /communities/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.054161" elapsed="0.015619"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-10-23T08:02:39.070207" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${comm}[summary][id]</arg>
+<arg>${first_id}</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.069908" elapsed="0.000358"/>
+</kw>
+<kw name="Edit Community" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.071019" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.084004" level="DEBUG">http://graphrag:80 "PUT /communities/community_1 HTTP/1.1" 200 0</msg>
+<arg>comm_id=${first_id}</arg>
+<arg>description=Updated community description for Apollo 11 graph.</arg>
+<doc>Calls PUT /communities/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.070360" elapsed="0.014000"/>
+</kw>
+<kw name="Read Community" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.085152" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.099550" level="DEBUG">http://graphrag:80 "GET /communities/community_1 HTTP/1.1" 200 3144</msg>
+<msg time="2026-10-23T08:02:39.100050" level="INFO">${updated_comm} = {'edges': [{'document_id': None, 'predicate': 'MENTIONS', 'source': 'michael_collins', 'target': 'nasa'}, {'document_id': None, 'predicate': 'MENTIONS', 'source': 'michael_collins', 'target': 'neil_ar...</msg>
+<var>${updated_comm}</var>
+<arg>${first_id}</arg>
+<doc>Calls GET /communities/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.084502" elapsed="0.015585"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${updated_comm}[summary][description]</arg>
+<arg>Updated community description</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.100236" elapsed="0.000375"/>
+</kw>
 <doc>Exercises Browse, Read, Edit, and Rebuild across /communities endpoints.</doc>
 <tag>bread</tag>
 <tag>communities</tag>
 <tag>graphrag</tag>
-<status status="FAIL" start="2026-10-23T07:44:59.710912" elapsed="0.000673">Parent suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:39.009009" elapsed="0.091714"/>
 </test>
 <test id="s1-s1-s3-t5" name="BREAD Impact On Graphrag Query Answering" line="109">
+<kw name="Add Node" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.102068" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.109895" level="DEBUG">http://graphrag:80 "POST /nodes HTTP/1.1" 201 0</msg>
+<arg>node_id=fred_haise</arg>
+<arg>label=Astronaut</arg>
+<arg>description=Fred Haise served as Lunar Module Pilot on Apollo 13.</arg>
+<doc>Calls POST /nodes.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.101381" elapsed="0.008856"/>
+</kw>
+<kw name="Add Edge" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.111102" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.127662" level="DEBUG">http://graphrag:80 "POST /edges HTTP/1.1" 201 0</msg>
+<arg>source=fred_haise</arg>
+<arg>predicate=ASSIGNED_TO</arg>
+<arg>target=apollo_13</arg>
+<arg>auto_create_nodes=True</arg>
+<doc>Calls POST /edges.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.110376" elapsed="0.017549"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-10-23T08:02:39.128378" level="INFO">${question} = Which mission was astronaut Fred Haise assigned to as Lunar Module Pilot?</msg>
+<var>${question}</var>
+<arg>Which mission was astronaut Fred Haise assigned to as Lunar Module Pilot?</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.128063" elapsed="0.000345"/>
+</kw>
+<kw name="Ask Graphrag Question" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.129105" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.143465" level="DEBUG">http://graphrag:80 "POST /query HTTP/1.1" 200 12917</msg>
+<msg time="2026-10-23T08:02:39.144120" level="INFO">${result} = {'answer': 'Fred Haise served as Lunar Module Pilot on Apollo 13. [Project Apollo] Kennedy\'s goal was accomplished on the Apollo 11 mission when astronauts Neil Armstrong and Buzz Aldrin landed their...</msg>
+<var>${result}</var>
+<arg>${question}</arg>
+<doc>Sends a natural-language question to POST /query and returns {'answer': ..., 'contexts': [...]}.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.128505" elapsed="0.015654"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${result}[answer]</arg>
+<arg>Apollo 13</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.144314" elapsed="0.000358"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>any("fred_haise" in ctx for ctx in ${result}[contexts])</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.144806" elapsed="0.000747"/>
+</kw>
+<kw name="Delete Edge" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.146289" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.156492" level="DEBUG">http://graphrag:80 "DELETE /edges/fred_haise/ASSIGNED_TO/apollo_13 HTTP/1.1" 204 0</msg>
+<arg>fred_haise</arg>
+<arg>ASSIGNED_TO</arg>
+<arg>apollo_13</arg>
+<doc>Calls DELETE /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.145655" elapsed="0.011095"/>
+</kw>
+<kw name="Delete Node" owner="GraphragApiLibrary">
+<msg time="2026-10-23T08:02:39.157428" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.166781" level="DEBUG">http://graphrag:80 "DELETE /nodes/fred_haise HTTP/1.1" 204 0</msg>
+<arg>fred_haise</arg>
+<doc>Calls DELETE /nodes/{id}.</doc>
+<status status="PASS" start="2026-10-23T08:02:39.156863" elapsed="0.010227"/>
+</kw>
 <doc>Verifies that adding a new node and edge via BREAD immediately reflects in subsequent /query answers.</doc>
 <tag>bread</tag>
 <tag>graphrag</tag>
 <tag>query</tag>
-<status status="FAIL" start="2026-10-23T07:44:59.712005" elapsed="0.000453">Parent suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:39.100932" elapsed="0.066302"/>
 </test>
 <kw name="Cleanup Ingested Documents" owner="GraphragApiLibrary" type="TEARDOWN">
+<msg time="2026-10-23T08:02:39.168246" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.177521" level="DEBUG">http://graphrag:80 "DELETE /documents/temp_apollo_bread.md HTTP/1.1" 204 0</msg>
+<msg time="2026-10-23T08:02:39.178318" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.192382" level="DEBUG">http://graphrag:80 "DELETE /documents/05_john_f_kennedy.md HTTP/1.1" 204 0</msg>
+<msg time="2026-10-23T08:02:39.193084" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.206510" level="DEBUG">http://graphrag:80 "DELETE /documents/04_michael_collins.md HTTP/1.1" 204 0</msg>
+<msg time="2026-10-23T08:02:39.207420" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.223246" level="DEBUG">http://graphrag:80 "DELETE /documents/03_buzz_aldrin.md HTTP/1.1" 204 0</msg>
+<msg time="2026-10-23T08:02:39.224077" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.235481" level="DEBUG">http://graphrag:80 "DELETE /documents/02_neil_armstrong.md HTTP/1.1" 204 0</msg>
+<msg time="2026-10-23T08:02:39.236169" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-10-23T08:02:39.249651" level="DEBUG">http://graphrag:80 "DELETE /documents/01_apollo_program.md HTTP/1.1" 204 0</msg>
 <doc>Deletes all documents ingested during the suite in [Teardown].</doc>
-<status status="PASS" start="2026-10-23T07:44:59.712885" elapsed="0.000126"/>
+<status status="PASS" start="2026-10-23T08:02:39.167622" elapsed="0.082277"/>
 </kw>
 <doc>End-to-End integration test suite for Graph RAG Browse, Read, Edit, Add, Delete (BREAD) REST APIs.</doc>
-<status status="FAIL" start="2026-10-23T07:44:59.705473" elapsed="0.007576">Suite setup failed:
-No .md files found in directory: /tmp/tests/data/graph_rag_baseline</status>
+<status status="PASS" start="2026-10-23T08:02:37.874685" elapsed="1.375262"/>
 </suite>
-<status status="FAIL" start="2026-10-23T07:44:59.607611" elapsed="0.106094"/>
+<status status="PASS" start="2026-10-23T08:02:36.972989" elapsed="2.277654"/>
 </suite>
-<status status="FAIL" start="2026-10-23T07:44:59.566141" elapsed="0.148056"/>
+<status status="PASS" start="2026-10-23T08:02:36.932383" elapsed="2.318687"/>
 </suite>
 <statistics>
 <total>
-<stat pass="4" fail="8" skip="0">All Tests</stat>
+<stat pass="12" fail="0" skip="0">All Tests</stat>
 </total>
 <tag>
 <stat pass="1" fail="0" skip="0">api</stat>
-<stat pass="0" fail="5" skip="0">bread</stat>
-<stat pass="0" fail="1" skip="0">communities</stat>
-<stat pass="0" fail="1" skip="0">documents</stat>
-<stat pass="0" fail="1" skip="0">edges</stat>
+<stat pass="5" fail="0" skip="0">bread</stat>
+<stat pass="1" fail="0" skip="0">communities</stat>
+<stat pass="1" fail="0" skip="0">documents</stat>
+<stat pass="1" fail="0" skip="0">edges</stat>
 <stat pass="1" fail="0" skip="0">foundation</stat>
-<stat pass="0" fail="8" skip="0">graphrag</stat>
+<stat pass="8" fail="0" skip="0">graphrag</stat>
 <stat pass="3" fail="0" skip="0">hams</stat>
 <stat pass="2" fail="0" skip="0">health</stat>
 <stat pass="1" fail="0" skip="0">metrics</stat>
-<stat pass="0" fail="2" skip="0">multi-hop</stat>
-<stat pass="0" fail="1" skip="0">nodes</stat>
-<stat pass="0" fail="1" skip="0">query</stat>
-<stat pass="0" fail="3" skip="0">ragas</stat>
-<stat pass="0" fail="1" skip="0">single-hop</stat>
+<stat pass="2" fail="0" skip="0">multi-hop</stat>
+<stat pass="1" fail="0" skip="0">nodes</stat>
+<stat pass="1" fail="0" skip="0">query</stat>
+<stat pass="3" fail="0" skip="0">ragas</stat>
+<stat pass="1" fail="0" skip="0">single-hop</stat>
 </tag>
 <suite>
-<stat name="Robot-Tests" id="s1" pass="4" fail="8" skip="0">Robot-Tests</stat>
-<stat name="Tests" id="s1-s1" pass="4" fail="8" skip="0">Robot-Tests.Tests</stat>
+<stat name="Robot-Tests" id="s1" pass="12" fail="0" skip="0">Robot-Tests</stat>
+<stat name="Tests" id="s1-s1" pass="12" fail="0" skip="0">Robot-Tests.Tests</stat>
 <stat name="01 Health And Foundation" id="s1-s1-s1" pass="4" fail="0" skip="0">Robot-Tests.Tests.01 Health And Foundation</stat>
-<stat name="02 Graph Rag Baseline" id="s1-s1-s2" pass="0" fail="3" skip="0">Robot-Tests.Tests.02 Graph Rag Baseline</stat>
-<stat name="03 Graph Rag Bread Api" id="s1-s1-s3" pass="0" fail="5" skip="0">Robot-Tests.Tests.03 Graph Rag Bread Api</stat>
+<stat name="02 Graph Rag Baseline" id="s1-s1-s2" pass="3" fail="0" skip="0">Robot-Tests.Tests.02 Graph Rag Baseline</stat>
+<stat name="03 Graph Rag Bread Api" id="s1-s1-s3" pass="5" fail="0" skip="0">Robot-Tests.Tests.03 Graph Rag Bread Api</stat>
 </suite>
 </statistics>
 <errors>
