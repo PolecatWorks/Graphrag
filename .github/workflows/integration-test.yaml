@@ -228,6 +228,7 @@ jobs:
 
       - name: Upload Robot Test Results Artifact
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: robot-test-results-pr-${{ env.PR_NUMBER }}
