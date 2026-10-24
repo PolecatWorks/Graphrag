@@ -83,6 +83,8 @@ mod tests {
             env::remove_var("GRAPHRAG_BE__DATABASE__TIMEOUT_SECONDS");
             env::remove_var("GRAPHRAG_BE__SERVER_PORT");
             env::remove_var("GRAPHRAG_BE__HAMS__PORT");
+            env::remove_var("GRAPHRAG_BE__LOGGING__LEVEL");
+            env::remove_var("GRAPHRAG_BE__LOGGING__FILTER");
         }
     }
 
