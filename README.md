@@ -74,7 +74,7 @@ flowchart LR
 
 ### Primary GraphRAG API (`:8080`)
 
-By default, the primary Axum service listens on `http://127.0.0.1:8080` (`server_host` and `server_port` in [config.yaml](./config.yaml)).
+By default, the primary Axum service listens on `http://127.0.0.1:8080` (`server_host` and `server_port` in [graphrag-container/config.yaml](./graphrag-container/config.yaml)).
 
 | Method | Path | Success Status | Description |
 |---|---|---|---|
@@ -281,7 +281,7 @@ curl -X POST http://localhost:8080/api/v1/mcp \
 
 ### Health Monitoring Sidecar (HaMS) API (`:8079`)
 
-The embedded HaMS sidecar listens on a dedicated port (`127.0.0.1:8079` by default, configured under `hams.address` in [config.yaml](./config.yaml)) and starts *before* database connections or the main Axum server are initialized.
+The embedded HaMS sidecar listens on a dedicated port (`127.0.0.1:8079` by default, configured under `hams.address` in [graphrag-container/config.yaml](./graphrag-container/config.yaml)) and starts *before* database connections or the main Axum server are initialized.
 
 | Method | Path | Success Status | Description |
 |---|---|---|---|
@@ -319,11 +319,11 @@ make migrate
 ```
 
 ### 2. Running the Development Server
-Start the backend server on ports `8080` (Axum) and `8079` (HaMS) using `config.yaml`:
+Start the backend server on ports `8080` (Axum) and `8079` (HaMS) using `graphrag-container/config.yaml`:
 ```bash
 make dev
 ```
-*Note: `make dev` runs `cargo run -- -c config.yaml` after freeing ports `8080` and `8079`.*
+*Note: `make dev` runs `cargo run --manifest-path graphrag-container/Cargo.toml -- -c graphrag-container/config.yaml` after freeing ports `8080` and `8079`.*
 
 ### 3. Hot-Reloading
 Run the server with hot-reloading via `cargo watch`:
@@ -360,7 +360,7 @@ make garden-test
 
 Configuration is managed centrally via `AppConfig` (`src/config.rs`) using `figment` and validated fail-fast at startup:
 - **CLI Flag (`clap` Derive)**: Pass `-c <PATH>` or `--config <PATH>` (`src/cli.rs`).
-- **YAML Configuration**: See [config.yaml](./config.yaml) for the default local configuration.
+- **YAML Configuration**: See [graphrag-container/config.yaml](./graphrag-container/config.yaml) for the default local configuration.
 - **Environment Variable Overrides**: Any field in `AppConfig` can be overridden using the `GRAPHRAG_BE__` prefix with `__` nesting (for example, `GRAPHRAG_BE__DATABASE__URL`, `GRAPHRAG_BE__SERVER_PORT`, `GRAPHRAG_BE__LLM__MODEL`).
 
 ---
