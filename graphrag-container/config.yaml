@@ -19,3 +19,5 @@ mcp:
   api_prefix: "/api"
   server_name: "graphrag-mcp"
   instructions: "GraphRAG-RS Model Context Protocol Server for knowledge graph ingestion, hybrid RAG querying, and BREAD data management."
+logging:
+  level: "info"

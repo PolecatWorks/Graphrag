@@ -1,11 +1,22 @@
 use serde_json::{json, Value};
 use crate::state::AppState;
+use tracing::{debug, error, instrument, trace};
 
+#[instrument(skip(state, raw_request), fields(method = tracing::field::Empty, req_id = tracing::field::Empty))]
 pub async fn handle_json_rpc(state: &AppState, raw_request: Value) -> Option<Value> {
     let id = raw_request.get("id").cloned();
+    let current_span = tracing::Span::current();
+    if let Some(ref id_val) = id {
+        current_span.record("req_id", tracing::field::display(id_val));
+    }
+
     let method = match raw_request.get("method").and_then(|m| m.as_str()) {
-        Some(m) => m,
+        Some(m) => {
+            current_span.record("method", m);
+            m
+        }
         None => {
+            debug!("MCP JSON-RPC request missing method");
             return id.map(|id_val| {
                 json!({
                     "jsonrpc": "2.0",
@@ -19,10 +30,12 @@ pub async fn handle_json_rpc(state: &AppState, raw_request: Value) -> Option<Val
         }
     };
 
+    trace!("Processing MCP JSON-RPC method '{}'", method);
     let params = raw_request.get("params").cloned().unwrap_or(Value::Null);
 
     let result = match method {
         "initialize" => {
+            debug!("MCP client initialize received");
             json!({
                 "protocolVersion": "2024-11-05",
                 "capabilities": {
@@ -36,16 +49,19 @@ pub async fn handle_json_rpc(state: &AppState, raw_request: Value) -> Option<Val
             })
         }
         "notifications/initialized" => {
+            debug!("MCP client initialized notification received");
             if id.is_none() {
                 return None;
             }
             json!({})
         }
         "ping" => {
+            trace!("MCP ping received");
             json!({})
         }
         "tools/list" => {
             let tools = state.mcp_server.list_tools();
+            debug!("MCP tools/list returning {} tools", tools.len());
             json!({
                 "tools": tools
             })
@@ -54,6 +70,7 @@ pub async fn handle_json_rpc(state: &AppState, raw_request: Value) -> Option<Val
             let tool_name = match params.get("name").and_then(|n| n.as_str()) {
                 Some(n) => n,
                 None => {
+                    debug!("MCP tools/call missing 'name' parameter");
                     return id.map(|id_val| {
                         json!({
                             "jsonrpc": "2.0",
@@ -68,9 +85,24 @@ pub async fn handle_json_rpc(state: &AppState, raw_request: Value) -> Option<Val
             };
 
             let arguments = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
-            match state.mcp_server.call_tool(state, tool_name, arguments).await {
-                Ok(val) => val,
+            debug!(tool = tool_name, args = %arguments, "MCP tools/call invoked");
+
+            let start = std::time::Instant::now();
+            let res = state.mcp_server.call_tool(state, tool_name, arguments).await;
+            let elapsed = start.elapsed();
+
+            match res {
+                Ok(val) => {
+                    let is_error = val.get("isError").and_then(|e| e.as_bool()).unwrap_or(false);
+                    if is_error {
+                        debug!(tool = tool_name, duration_ms = elapsed.as_millis(), "MCP tool returned error payload: {:?}", val);
+                    } else {
+                        debug!(tool = tool_name, duration_ms = elapsed.as_millis(), "MCP tool execution succeeded");
+                    }
+                    val
+                }
                 Err(err) => {
+                    error!(tool = tool_name, duration_ms = elapsed.as_millis(), error = %err, "MCP tool execution failed");
                     json!({
                         "content": [
                             {
@@ -84,6 +116,7 @@ pub async fn handle_json_rpc(state: &AppState, raw_request: Value) -> Option<Val
             }
         }
         _ => {
+            debug!("MCP JSON-RPC method '{}' not found", method);
             return id.map(|id_val| {
                 json!({
                     "jsonrpc": "2.0",
@@ -139,6 +172,7 @@ mod tests {
                 timeout_seconds: 1,
             },
             mcp: McpConfig::default(),
+            logging: crate::logging::LoggingConfig::default(),
         });
 
         AppState {

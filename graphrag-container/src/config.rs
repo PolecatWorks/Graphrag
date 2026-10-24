@@ -1,5 +1,6 @@
 use crate::db::DatabaseConfig;
 use crate::llm_tools::LlmConfig;
+use crate::logging::{LoggingConfig, LoggingError};
 use crate::mcp::{McpConfig, McpError};
 use figment::{
     Figment,
@@ -19,6 +20,8 @@ pub enum ConfigError {
     Llm(#[from] crate::llm_tools::LlmError),
     #[error(transparent)]
     Mcp(#[from] McpError),
+    #[error(transparent)]
+    Logging(#[from] LoggingError),
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,6 +34,8 @@ pub struct AppConfig {
     pub llm: LlmConfig,
     #[serde(default)]
     pub mcp: McpConfig,
+    #[serde(default)]
+    pub logging: LoggingConfig,
 }
 
 impl AppConfig {
@@ -51,6 +56,7 @@ impl AppConfig {
         self.database.validate()?;
         self.llm.validate()?;
         self.mcp.validate()?;
+        self.logging.validate()?;
 
         if self.server_port == 0 {
             return Err(ConfigError::ZeroServerPort);
@@ -98,6 +104,7 @@ mod tests {
                 timeout_seconds: 60,
             },
             mcp: McpConfig::default(),
+            logging: LoggingConfig::default(),
         }
     }
 
@@ -148,6 +155,50 @@ mod tests {
         assert_eq!(config.database.pool_size, 20);
         assert_eq!(config.database.timeout_seconds, 60);
         assert_eq!(config.server_port, 9090);
+    }
+
+    #[test]
+    fn test_config_logging_override_from_env() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60\nlogging:\n  level: info"
+        )
+        .unwrap();
+
+        clear_env();
+
+        unsafe {
+            env::set_var("GRAPHRAG_BE__LOGGING__LEVEL", "debug");
+            env::set_var("GRAPHRAG_BE__LOGGING__FILTER", "debug,app=trace");
+        }
+
+        let config = AppConfig::load(Some(file.path().to_str().unwrap())).unwrap();
+
+        clear_env();
+
+        assert_eq!(config.logging.level, "debug");
+        assert_eq!(config.logging.filter.as_deref(), Some("debug,app=trace"));
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_delegates_to_logging_config() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60\nlogging:\n  level: invalid_log_level"
+        )
+        .unwrap();
+
+        clear_env();
+
+        let config = AppConfig::load(Some(file.path().to_str().unwrap())).unwrap();
+        let res = config.validate();
+        assert!(res.is_err());
+        assert!(matches!(res.unwrap_err(), ConfigError::Logging(_)));
     }
 
     #[test]
