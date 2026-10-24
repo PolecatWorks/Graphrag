@@ -28,6 +28,7 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [16. Graph RAG Data Management (BREAD API)](./16-graph-rag-bread-api-spec.md) - `complete`
 *   [17. Graph RAG Model Context Protocol (MCP) Service](./17-graph-rag-mcp-service-spec.md) - `complete`
 *   [18. CI/CD Container Integration](./18-ci-cd-container-integration-spec.md) - `complete`
+*   [19. API & MCP Tracing, Observability & Configurable Logging](./19-api-mcp-tracing-observability-spec.md) - `draft`
 
 
 
