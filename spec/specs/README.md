@@ -26,6 +26,7 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [14. Robot Framework & Ragas Integration Test Harness (`make test-robot`)](./14-robot-ragas-integration-harness-spec.md) - `complete`
 *   [15. Developer Tooling Configuration & Clap Arguments (Makefile)](./15-makefile-clap-config-spec.md) - `complete`
 *   [16. Graph RAG Data Management (BREAD API)](./16-graph-rag-bread-api-spec.md) - `complete`
+*   [17. Graph RAG Model Context Protocol (MCP) Service](./17-graph-rag-mcp-service-spec.md) - `draft`
 *   [18. CI/CD Container Integration](./18-ci-cd-container-integration-spec.md) - `complete`
 
 
