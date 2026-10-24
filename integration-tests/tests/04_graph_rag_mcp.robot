@@ -65,13 +65,13 @@ MCP Baseline Tool: Hello
     [Tags]    mcp    hello
 
     # Valid invocation with whitespace trimming
-    ${args}=    Create Dictionary    name=  Antigravity Agent  
+    ${args}=    Create Dictionary    name=${SPACE}${SPACE}Antigravity Agent${SPACE}${SPACE}
     ${res}=    Mcp Call Tool    tool_name=hello    arguments=${args}
     Should Be Equal    ${res}[isError]    ${False}
     Should Be Equal As Strings    ${res}[content][0][text]    Hello, Antigravity Agent!
 
     # Empty name should return isError: true
-    ${empty_args}=    Create Dictionary    name=   
+    ${empty_args}=    Create Dictionary    name=${SPACE}${SPACE}
     ${err_res}=    Mcp Call Tool    tool_name=hello    arguments=${empty_args}
     Should Be Equal    ${err_res}[isError]    ${True}
 
@@ -80,7 +80,8 @@ MCP BREAD Lifecycle: Documents
     [Tags]    mcp    bread    documents
 
     # 1. document_browse
-    ${browse_args}=    Create Dictionary    limit=10
+    ${limit_int}=    Convert To Integer    10
+    ${browse_args}=    Create Dictionary    limit=${limit_int}
     ${browse_res}=    Mcp Call Tool    tool_name=document_browse    arguments=${browse_args}
     Should Be Equal    ${browse_res}[isError]    ${False}
     Should Contain    ${browse_res}[content][0][text]    04_michael_collins.md
