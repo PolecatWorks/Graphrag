@@ -1,5 +1,6 @@
 use crate::db::DatabaseConfig;
 use crate::llm_tools::LlmConfig;
+use crate::mcp::{McpConfig, McpError};
 use figment::{
     Figment,
     providers::{Env, Format, Yaml},
@@ -16,6 +17,8 @@ pub enum ConfigError {
     Database(#[from] crate::db::DatabaseError),
     #[error(transparent)]
     Llm(#[from] crate::llm_tools::LlmError),
+    #[error(transparent)]
+    Mcp(#[from] McpError),
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,6 +29,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub hams: HamsConfig,
     pub llm: LlmConfig,
+    #[serde(default)]
+    pub mcp: McpConfig,
 }
 
 impl AppConfig {
@@ -45,6 +50,7 @@ impl AppConfig {
     pub fn validate(&self) -> Result<(), ConfigError> {
         self.database.validate()?;
         self.llm.validate()?;
+        self.mcp.validate()?;
 
         if self.server_port == 0 {
             return Err(ConfigError::ZeroServerPort);
@@ -91,6 +97,7 @@ mod tests {
                 model: "llama3".to_string(),
                 timeout_seconds: 60,
             },
+            mcp: McpConfig::default(),
         }
     }
 
@@ -141,6 +148,14 @@ mod tests {
         assert_eq!(config.database.pool_size, 20);
         assert_eq!(config.database.timeout_seconds, 60);
         assert_eq!(config.server_port, 9090);
+    }
+
+    #[test]
+    fn test_validate_delegates_to_mcp_config() {
+        let mut config = valid_app_config();
+        config.mcp.server_name = "".to_string();
+        let res = config.validate();
+        assert!(matches!(res, Err(ConfigError::Mcp(McpError::EmptyServerName))));
     }
 
     #[test]

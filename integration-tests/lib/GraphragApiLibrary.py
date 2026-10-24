@@ -464,3 +464,83 @@ class GraphragApiLibrary:
             raise AssertionError(
                 f"DELETE /communities/{comm_id} expected {expected_status}, got {resp.status_code}: {resp.text}"
             )
+
+    def mcp_request(
+        self, payload: Dict[str, Any], endpoint: str = "/api/v1/mcp", expected_status: int = 200
+    ) -> Any:
+        """Sends a JSON-RPC 2.0 request payload to an MCP endpoint (/api/v1/mcp or /mcp)."""
+        url = f"{self.be_base_url}{endpoint}"
+        resp = requests.post(url, json=payload, timeout=30)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"POST {endpoint} expected {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        if resp.status_code == 204 or not resp.text.strip():
+            return None
+        return resp.json()
+
+    def mcp_initialize(self, endpoint: str = "/api/v1/mcp") -> Dict[str, Any]:
+        """Performs MCP initialize handshake."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "robot-test-client", "version": "1.0.0"},
+            },
+        }
+        resp = self.mcp_request(payload, endpoint=endpoint)
+        if "error" in resp:
+            raise AssertionError(f"MCP initialize returned error: {resp['error']}")
+        return resp.get("result", {})
+
+    def mcp_notify_initialized(self, endpoint: str = "/api/v1/mcp") -> None:
+        """Sends notifications/initialized notification (204 No Content expected)."""
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+        }
+        self.mcp_request(payload, endpoint=endpoint, expected_status=204)
+
+    def mcp_ping(self, endpoint: str = "/api/v1/mcp") -> Dict[str, Any]:
+        """Sends ping method to MCP server."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "ping",
+        }
+        resp = self.mcp_request(payload, endpoint=endpoint)
+        return resp.get("result", {})
+
+    def mcp_list_tools(self, endpoint: str = "/api/v1/mcp") -> List[Dict[str, Any]]:
+        """Queries tools/list on MCP server."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/list",
+        }
+        resp = self.mcp_request(payload, endpoint=endpoint)
+        return resp.get("result", {}).get("tools", [])
+
+    def mcp_call_tool(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any] = None,
+        endpoint: str = "/api/v1/mcp",
+    ) -> Dict[str, Any]:
+        """Calls a tool via tools/call and returns the tool call result object."""
+        if arguments is None:
+            arguments = {}
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": arguments,
+            },
+        }
+        resp = self.mcp_request(payload, endpoint=endpoint)
+        return resp.get("result", {})

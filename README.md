@@ -227,6 +227,58 @@ Deletes an ingested document and removes its associated Knowledge Objects and Gr
 
 ---
 
+#### 5. Model Context Protocol (MCP) Endpoints (`POST /mcp` & `POST /api/v1/mcp`)
+
+GraphRAG-RS exposes an in-process Model Context Protocol (MCP) server over standard HTTP JSON-RPC 2.0 transport matching the patterns of `aad-mcp-container`. AI clients (Antigravity, Cursor, Claude Desktop, and autonomous agents) can connect to discover and execute 23 structured tools for smoke-testing, pipeline execution, and fine-grained BREAD management.
+
+##### Supported JSON-RPC Methods:
+- `initialize`: Returns protocol version (`2024-11-05`), capabilities (`tools`), server info, and instructions.
+- `notifications/initialized`: Handshake notification returning HTTP `204 No Content`.
+- `ping`: Health verification returning `{}`.
+- `tools/list`: Lists 23 tools with auto-generated Draft-07 JSON schemas (`schemars`).
+- `tools/call`: Executes a tool with `name` and `arguments`.
+
+##### Example: MCP Handshake & Tool Invocation
+```bash
+# 1. Initialize Handshake
+curl -X POST http://localhost:8080/api/v1/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {}
+  }'
+
+# 2. Call Smoke-Test Hello Tool
+curl -X POST http://localhost:8080/api/v1/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "hello",
+      "arguments": { "name": "Antigravity" }
+    }
+  }'
+
+# 3. Call Hybrid Graph RAG Query Tool
+curl -X POST http://localhost:8080/api/v1/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "graphrag_query",
+      "arguments": { "question": "Who flew the Apollo 11 command module Columbia?" }
+    }
+  }'
+```
+
+---
+
 ### Health Monitoring Sidecar (HaMS) API (`:8079`)
 
 The embedded HaMS sidecar listens on a dedicated port (`127.0.0.1:8079` by default, configured under `hams.address` in [config.yaml](./config.yaml)) and starts *before* database connections or the main Axum server are initialized.
