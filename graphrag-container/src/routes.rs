@@ -145,6 +145,19 @@ pub fn create_router() -> Router<AppState> {
         .route("/communities", get(browse_communities))
         .route("/communities/rebuild", post(rebuild_communities))
         .route("/communities/{id}", get(read_community).put(edit_community).delete(delete_community))
+        .route("/mcp", post(handle_http_mcp))
+        .route("/api/v1/mcp", post(handle_http_mcp))
+}
+
+async fn handle_http_mcp(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let response = crate::mcp::rpc::handle_json_rpc(&state, payload).await;
+    match response {
+        Some(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    }
 }
 async fn hello() -> &'static str {
     "Hello, World!"
@@ -400,6 +413,7 @@ mod tests {
                 model: "llama3".to_string(),
                 timeout_seconds: 1,
             },
+            mcp: crate::mcp::McpConfig::default(),
         });
 
         AppState {
@@ -407,6 +421,7 @@ mod tests {
             config: config.clone(),
             llm: Arc::new(crate::llm_tools::LlmClient::new(&config.llm).unwrap()),
             graph_store: GraphStore::default(),
+            mcp_server: Arc::new(crate::mcp::server::GraphRagMcpServer::new()),
         }
     }
 
@@ -430,6 +445,7 @@ mod tests {
                 model: "llama3".to_string(),
                 timeout_seconds: 1,
             },
+            mcp: crate::mcp::McpConfig::default(),
         });
 
         AppState {
@@ -437,6 +453,7 @@ mod tests {
             config: config.clone(),
             llm: Arc::new(crate::llm_tools::LlmClient::new(&config.llm).unwrap()),
             graph_store: GraphStore::default(),
+            mcp_server: Arc::new(crate::mcp::server::GraphRagMcpServer::new()),
         }
     }
 

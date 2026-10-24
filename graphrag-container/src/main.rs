@@ -4,6 +4,7 @@ mod db;
 pub mod graph_rag;
 pub mod hams_tools;
 mod llm_tools;
+pub mod mcp;
 mod routes;
 mod state;
 
@@ -86,6 +87,7 @@ async fn main() {
         config: Arc::new(config),
         llm: Arc::new(llm_client),
         graph_store: GraphStore::default(),
+        mcp_server: Arc::new(crate::mcp::server::GraphRagMcpServer::new()),
     };
 
     let app = routes::create_router().with_state(app_state);

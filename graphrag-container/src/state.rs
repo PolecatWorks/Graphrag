@@ -1,6 +1,7 @@
 use crate::config::AppConfig;
 use crate::graph_rag::GraphStore;
 use crate::llm_tools::LlmClient;
+use crate::mcp::server::GraphRagMcpServer;
 use sqlx::PgPool;
 use std::sync::Arc;
 
@@ -10,6 +11,7 @@ pub struct AppState {
     pub config: Arc<AppConfig>,
     pub llm: Arc<LlmClient>,
     pub graph_store: GraphStore,
+    pub mcp_server: Arc<GraphRagMcpServer>,
 }
 
 impl axum::extract::FromRef<AppState> for PgPool {

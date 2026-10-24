@@ -1,6 +1,6 @@
 # Spec 17: Graph RAG Model Context Protocol (MCP) Service
 
-**Status:** `draft`
+**Status:** `complete`
 **Derived From:**
 * [Graph RAG Model Context Protocol (MCP) PRD](../prds/graph-rag-mcp-prd.md)
 * [Graph RAG Data Management (BREAD API) PRD](../prds/graph-rag-api-bread-prd.md)
