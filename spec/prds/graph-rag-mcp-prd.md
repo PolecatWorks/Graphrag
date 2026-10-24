@@ -24,6 +24,10 @@ By exposing GraphRAG-RS as an MCP server over standard HTTP JSON-RPC 2.0 transpo
    - Provide the canonical `hello` tool accepting `{ "name": "<string>" }`, trimming surrounding whitespace, rejecting empty/whitespace-only names with `isError: true`, and returning `"Hello, <name>!"`.
 4. **Complete Graph RAG Pipeline & BREAD Tool Coverage**:
    - Expose structured MCP tools for pipeline execution (`graphrag_ingest`, `graphrag_query`) and full BREAD operations over Documents (`document_*`), Nodes (`node_*`), Edges (`edge_*`), and Communities (`community_*`).
+5. **Observability, Tracing & Configurable Log Verbosity**:
+   - Instrument all MCP endpoints and JSON-RPC dispatch routines (`handle_json_rpc`, `call_tool`) with structured tracing spans and `DEBUG` / `TRACE` events capturing methods, tool names, parameters, execution latency, and outcomes.
+   - Configure HTTP `TraceLayer` across MCP and REST API routes for visibility into request/response flows.
+   - Define a strongly typed `LoggingConfig` within `AppConfig` (`level: "info" | "debug" | ...`, `filter: Option<String>`) with fail-fast validation. In development/watch mode (`make gr-be-watch`), override logging via config file or prefix environment variable (`GRAPHRAG_BE__LOGGING__LEVEL=debug` / `GRAPHRAG_BE__LOGGING__FILTER="debug,app=debug,tower_http=debug"`), allowing dynamic, declarative control without hardcoded fallback log levels.
 
 ---
 

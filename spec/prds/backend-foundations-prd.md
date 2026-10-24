@@ -46,7 +46,7 @@ flowchart TD
 - A root-level `Makefile` exposes targets to simplify the build, test, and run cycles.
 - Targets should include:
   - `make dev`: Starts server with port cleanup, passing configuration file path via the clap argument (`-c $(CONFIG_FILE)`).
-  - `make watch` / `make aad-be-watch`: Starts server with hot-reloading via cargo watch, passing the configuration file path via the clap argument (`cargo watch -x "run -- -c $(CONFIG_FILE)"`).
+  - `make watch` / `make gr-be-watch`: Starts server with hot-reloading via cargo watch, passing the configuration file path via the clap argument (`cargo watch -x "run -- -c $(CONFIG_FILE)"`). In watch mode, logging is configured to DEBUG level via config / environment variable override (`GRAPHRAG_BE__LOGGING__LEVEL=debug` or `GRAPHRAG_BE__LOGGING__FILTER="debug,app=debug,tower_http=debug"`) to surface trace logs of API requests and MCP operations.
   - `make migrate`: Runs database migrations via `sqlx database create` and `sqlx migrate run` using `$(DATABASE_URL)`.
   - `make test`: Runs unit tests with `--test-threads=1`.
   - `make test-robot`: Executes Robot Framework integration tests via `./integration-tests/run-tests-local.sh` against the already-running Graphrag service.
