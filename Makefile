@@ -2,7 +2,7 @@
         migrate test test-robot docker build-docker docker-run helm-lint \
         garden-up garden-test garden-down robot-test kill-ports
 
-CONFIG_FILE ?= config.yaml
+CONFIG_FILE ?= graphrag-container/config.yaml
 DATABASE_URL ?= postgres://postgres:mysecretpassword@localhost:5432/graphrag
 
 BACKEND_PORT ?= 8080
@@ -43,14 +43,14 @@ kill-ports:
 # Starts the backend server in a standard development mode
 dev: aad-be-dev
 aad-be-dev: kill-ports
-	cd graphrag-container && cargo run -- -c $(CONFIG_FILE)
+	cargo run --manifest-path graphrag-container/Cargo.toml -- -c $(CONFIG_FILE)
 
 # Starts the backend server with hot-reloading enabled via cargo watch
 watch: aad-be-watch
 aad-be-watch:
 	-@lsof -t -i:$(BACKEND_PORT) | xargs -r kill -9 2>/dev/null || true
 	-@lsof -t -i:$(BACKEND_HEALTH_PORT) | xargs -r kill -9 2>/dev/null || true
-	cd graphrag-container && cargo watch -w src -w config.yaml -x "run -- -c $(CONFIG_FILE)"
+	cd graphrag-container && cargo watch -w src -w config.yaml -x "run -- -c config.yaml"
 
 # Executes pending database migrations
 migrate: aad-be-migrate
