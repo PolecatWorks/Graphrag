@@ -56,7 +56,7 @@ watch: gr-be-watch
 gr-be-watch:
 	-@lsof -t -i:$(BACKEND_PORT) | xargs -r kill -9 2>/dev/null || true
 	-@lsof -t -i:$(BACKEND_HEALTH_PORT) | xargs -r kill -9 2>/dev/null || true
-	cd graphrag-container && cargo watch -w src -w config.yaml -x "run -- -c config.yaml"
+	cd graphrag-container && GRAPHRAG_BE__LOGGING__LEVEL=debug cargo watch -w src -w config.yaml -x "run -- -c config.yaml"
 
 # Compatibility aliases
 graphrag-be-watch: gr-be-watch

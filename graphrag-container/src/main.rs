@@ -3,6 +3,7 @@ mod config;
 mod db;
 pub mod graph_rag;
 pub mod hams_tools;
+pub mod logging;
 mod llm_tools;
 pub mod mcp;
 mod routes;
@@ -19,28 +20,35 @@ use std::process;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
-
     let cli = Cli::parse();
     let ct = CancellationToken::new();
 
     let config = match AppConfig::load(cli.config.as_deref()) {
         Ok(c) => c,
         Err(e) => {
-            error!("Failed to load configuration: {}", e);
+            eprintln!("Failed to load configuration: {}", e);
             process::exit(1);
         }
     };
 
     if let Err(e) = config.validate() {
-        error!("Configuration validation failed: {}", e);
+        eprintln!("Configuration validation failed: {}", e);
         process::exit(1);
     }
 
-    info!("Configuration loaded successfully.");
+    let filter_directive = config.logging.filter_directive();
+    let filter = EnvFilter::try_new(&filter_directive)
+        .unwrap_or_else(|_| EnvFilter::new("info,app=info,tower_http=info"));
+
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .init();
+
+    info!("Configuration loaded successfully. Active log filter: {}", filter_directive);
 
     let hams_config = config.hams.clone();
     let hams = Hams::new(hams_config);

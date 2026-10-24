@@ -1,13 +1,14 @@
+use crate::graph_rag::{GraphRagError, GraphTuple, KnowledgeObject};
 use crate::state::AppState;
 use axum::{
     Json, Router,
-    extract::{Path, State, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
 };
-use crate::graph_rag::{GraphRagError, GraphTuple, KnowledgeObject};
 use serde::{Deserialize, Serialize};
+use tower_http::trace::TraceLayer;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct IngestRequest {
@@ -147,6 +148,7 @@ pub fn create_router() -> Router<AppState> {
         .route("/communities/{id}", get(read_community).put(edit_community).delete(delete_community))
         .route("/mcp", post(handle_http_mcp))
         .route("/api/v1/mcp", post(handle_http_mcp))
+        .layer(TraceLayer::new_for_http())
 }
 
 async fn handle_http_mcp(
@@ -414,6 +416,7 @@ mod tests {
                 timeout_seconds: 1,
             },
             mcp: crate::mcp::McpConfig::default(),
+            logging: crate::logging::LoggingConfig::default(),
         });
 
         AppState {
@@ -446,6 +449,7 @@ mod tests {
                 timeout_seconds: 1,
             },
             mcp: crate::mcp::McpConfig::default(),
+            logging: crate::logging::LoggingConfig::default(),
         });
 
         AppState {
