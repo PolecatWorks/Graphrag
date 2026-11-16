@@ -11,5 +11,4 @@ This directory contains the foundational Product Requirements Documents that des
 * [Graph RAG](./graph-rag-prd.md)
 * [Graph RAG Data Management (BREAD API)](./graph-rag-api-bread-prd.md)
 * [Graph RAG MCP Service](./graph-rag-mcp-prd.md)
-
-
+* [Autonomous Semantic Layer & Data Asset Ontology](./autonomous-semantic-ontology-prd.md)

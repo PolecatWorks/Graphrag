@@ -106,7 +106,11 @@ flowchart TD
 - **Full BREAD MCP Tools:** `document_*`, `node_*`, `edge_*`, and `community_*` tools operating directly against the in-process `GraphStore`.
 - See the dedicated **[Graph RAG MCP Service PRD](./graph-rag-mcp-prd.md)** for full protocol lifecycle diagrams, tool schemas, and error contracts.
 
+### 7. Autonomous Semantic Layer & Data Asset Ontology Integration
+**Objective:** Extend the knowledge graph to represent physical datasets (`Dataset` Layer 1 nodes), fields (`Field` Layer 0 nodes), business metrics/concepts (Layer 2 nodes), and empirically probed join paths (`JOINABLE_WITH` and `FORBIDDEN_JOIN` tuples) synchronized from `data-engine`:
+- **Epistemic State & Stewardship Tracking:** Nodes and edges track `epistemic_status` (`discovered`, `hypothesized`, `empirically_tested`, `pending_review`, `verified`, `rejected`, `drifted`), `confidence` (`0.0..1.0`), `verified_by`, and structured `properties` (`JSONB`).
+- **Join-Path & Fan-Out Planner (`POST /ontology/join-path` & `graphrag_find_join_path`):** Discovers optimal multi-hop join paths across datasets while detecting `1:N * 1:N` chasm traps and enforcing negative `FORBIDDEN_JOIN` constraints.
+- See the dedicated **[Autonomous Semantic Layer & Data Asset Ontology PRD](./autonomous-semantic-ontology-prd.md)** for full details.
+
 ## Future Considerations
-- Implementing a specialized Query Router LLM that decides whether an incoming user query requires a local search (Layer 0 nodes), a global search (Community Summaries), or a hybrid approach.
-
-
+- Implementing a specialized Query Router LLM that decides whether an incoming user query requires a local search (Layer 0 nodes), a global search (Community Summaries), a structured join-path plan, or a hybrid approach.
