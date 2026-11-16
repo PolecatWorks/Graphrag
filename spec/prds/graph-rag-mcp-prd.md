@@ -290,6 +290,17 @@ Provides inspection, curation, and deterministic recomputation of Layer 1+ hiera
 
 ---
 
+### 7. Data Asset Ontology & Join-Path Planning Tools (`ontology_*` & `graphrag_find_join_path`)
+
+Supports synchronization with `data-engine` and join-path discovery for `agent-as-data` and `Angry-agent` (see [Autonomous Semantic Layer & Data Asset Ontology PRD](./autonomous-semantic-ontology-prd.md)):
+
+| Tool Name | Request Schema Struct | Required Fields | Optional Fields | Description |
+|---|---|---|---|---|
+| `graphrag_find_join_path` | `FindJoinPathRequest` | `seed_concepts_or_fields: Vec<String>` | `question: Option<String>`, `include_unverified: Option<bool>`, `min_confidence: Option<f64>` | Resolves business concepts to physical dataset fields, computes the optimal join path across `JOINABLE_WITH` tuples (excluding `FORBIDDEN_JOIN`), detects `1:N` fan-out traps, and returns the epistemic trust summary. |
+| `ontology_sync_dataset` | `OntologySyncDatasetRequest` | `dataset: DatasetOntologyNode`, `fields: Vec<FieldOntologyNode>` | `join_hypotheses: Option<Vec<JoinOntologyEdge>>` | Bulk upserts a profiled `Dataset` node, its `Field` nodes, `HAS_FIELD` edges, and probed `JOINABLE_WITH` / `FORBIDDEN_JOIN` edges while preserving human-verified descriptions. |
+
+---
+
 ## Autonomous Agent User Journey Over MCP
 
 ```mermaid
