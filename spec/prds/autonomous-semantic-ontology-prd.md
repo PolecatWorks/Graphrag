@@ -98,7 +98,22 @@ Provides a single idempotent bulk upsert endpoint called by `data-engine` after 
 
 ---
 
+### 5. Ontology Discovery & Benchmark Validation Datasets
+To empirically verify that **GraphRAG-RS** and [`data-engine`](https://github.com/PolecatWorks/data-engine) accurately infer semantic layers, detect fan-out/chasm traps, and honor `FORBIDDEN_JOIN` negative constraints, the ontology graph is benchmarked against three validation tiers (detailed in `data-engine`'s `validation-datasets-and-benchmark-prd.md`):
+
+1. **Valentine Schema & Join Discovery Benchmark ([`delftdata/valentine`](https://github.com/delftdata/valentine))**:
+   - Ingests Valentine's ground-truth `Joinable`, `Unionable`, and `View-Union` dataset pairs (where column names are intentionally obfuscated or noisy) via `POST /ontology/sync-dataset`.
+   - Measures **Join Edge Precision, Recall, and F1** of `JOINABLE_WITH` tuples and verifies that semantic community clustering (`CommunitySummary`) groups fragmented tables into the right domain clusters.
+2. **BIRD-SQL (`bird-bench.github.io` / `birdsql/bird_mini_dev`) Blind-Evidence Protocol**:
+   - Ingests BIRD-SQL's 95 dirty multi-table databases *without* their `evidence` annotations so `data-engine` + `Graphrag` hypothesize `Field` semantics, units, and `JOINABLE_WITH` edges (`epistemic_status = "hypothesized"` / `"empirically_tested"`).
+   - Simulates Human Steward review on the RHS Shared Canvas using the held-back BIRD-SQL `evidence` rules to transition nodes/tuples to `verified` (or `FORBIDDEN_JOIN`), quantifying the accuracy delta on `POST /ontology/join-path`.
+3. **Brazilian E-Commerce by Olist & Built-In Chaos Seeder (`TRAP-01` .. `TRAP-04`)**:
+   - Validates that `POST /ontology/join-path` blocks the `TRAP-01` homonym chasm (`billing_subscriptions.account_id` vs `marketing_leads.account_id`) once marked `FORBIDDEN_JOIN`, discovers the `TRAP-02` cryptic synonym join (`sales_orders.cust_ref_key` $\leftrightarrow$ `crm_customers.party_uuid`), and emits `fan_out_warnings` on the `TRAP-03` ($2.45\times$ `order_items` $\times$ `order_payments`) M:N fan-out trap.
+
+---
+
 ## Related PRDs
 - [Graph RAG PRD](./graph-rag-prd.md)
 - [Graph RAG Data Management (BREAD API) PRD](./graph-rag-api-bread-prd.md)
 - [Graph RAG MCP Service PRD](./graph-rag-mcp-prd.md)
+
