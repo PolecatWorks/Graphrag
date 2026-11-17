@@ -6,6 +6,7 @@ pub mod hams_tools;
 pub mod logging;
 mod llm_tools;
 pub mod mcp;
+pub mod ontology;
 mod routes;
 mod state;
 

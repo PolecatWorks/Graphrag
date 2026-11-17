@@ -100,6 +100,8 @@ pub struct InMemoryGraph {
     pub documents: BTreeMap<String, String>,
     pub nodes: BTreeMap<String, KnowledgeObject>,
     pub edges: BTreeSet<GraphTuple>,
+    pub node_meta: BTreeMap<String, crate::ontology::OntologyElementMeta>,
+    pub edge_meta: BTreeMap<(String, String, String), crate::ontology::OntologyElementMeta>,
 }
 
 #[derive(Clone, Debug, Default)]

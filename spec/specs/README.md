@@ -31,6 +31,5 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [19. API & MCP Tracing, Observability & Configurable Logging](./19-api-mcp-tracing-observability-spec.md) - `complete`
 *   [20. Configurable API Prefix & Istio VirtualService Composition](./20-configurable-api-prefix-and-virtualservice-spec.md) - `complete`
 *   [21. File-Based Database Secrets & Config Resolution](./21-file-based-secrets-config-spec.md) - `complete`
-
-
-
+*   [22. Autonomous Ontology Schema, Epistemic Lifecycle & Dataset Sync (`POST /ontology/sync-dataset`)](./22-ontology-schema-and-dataset-sync-spec.md) - `complete`
+*   [23. Multi-Hop Steiner Join-Path Planner, `FORBIDDEN_JOIN` Blocking & Fan-Out Detector (`POST /ontology/join-path`)](./23-ontology-join-path-planner-spec.md) - `complete`
