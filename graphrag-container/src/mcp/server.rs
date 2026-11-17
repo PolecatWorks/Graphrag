@@ -602,6 +602,33 @@ impl GraphRagMcpServer {
                     "isError": false
                 }))
             }
+            "ontology_sync_dataset" => {
+                let req: crate::ontology::OntologySyncDatasetRequest = serde_json::from_value(arguments)
+                    .map_err(|e| McpError::InvalidArguments("ontology_sync_dataset".to_string(), e.to_string()))?;
+                let resp = state.graph_store.sync_dataset_ontology(&state.pool, req).await?;
+                Ok(serde_json::json!({
+                    "content": [{"type": "text", "text": serde_json::to_string_pretty(&resp)?}],
+                    "isError": false
+                }))
+            }
+            "ontology_steward_edge" => {
+                let req: crate::ontology::StewardEdgeRequest = serde_json::from_value(arguments)
+                    .map_err(|e| McpError::InvalidArguments("ontology_steward_edge".to_string(), e.to_string()))?;
+                let resp = state.graph_store.steward_decide_join_edge(&state.pool, req).await?;
+                Ok(serde_json::json!({
+                    "content": [{"type": "text", "text": serde_json::to_string_pretty(&resp)?}],
+                    "isError": false
+                }))
+            }
+            "graphrag_find_join_path" => {
+                let req: crate::ontology::JoinPathRequest = serde_json::from_value(arguments)
+                    .map_err(|e| McpError::InvalidArguments("graphrag_find_join_path".to_string(), e.to_string()))?;
+                let resp = state.graph_store.find_ontology_join_path(&state.pool, req).await?;
+                Ok(serde_json::json!({
+                    "content": [{"type": "text", "text": serde_json::to_string_pretty(&resp)?}],
+                    "isError": false
+                }))
+            }
             _ => Err(McpError::ToolNotFound(name.to_string())),
         }
     }
@@ -731,6 +758,21 @@ impl GraphRagMcpServer {
 
     #[tool(description = "Deletes a community summary node and associated hierarchy edges.")]
     pub fn community_delete(&self, _params: Parameters<CommunityDeleteRequest>) -> Result<String, String> {
+        Ok("Dispatched via call_tool".to_string())
+    }
+
+    #[tool(description = "Synchronizes a profiled dataset, its field nodes, and empirical join probe edges into the autonomous semantic ontology.")]
+    pub fn ontology_sync_dataset(&self, _params: Parameters<crate::ontology::OntologySyncDatasetRequest>) -> Result<String, String> {
+        Ok("Dispatched via call_tool".to_string())
+    }
+
+    #[tool(description = "Records a human steward decision ('verify' or 'reject' -> FORBIDDEN_JOIN) on a join relationship.")]
+    pub fn ontology_steward_edge(&self, _params: Parameters<crate::ontology::StewardEdgeRequest>) -> Result<String, String> {
+        Ok("Dispatched via call_tool".to_string())
+    }
+
+    #[tool(description = "Plans the highest-confidence multi-hop join path across datasets while blocking FORBIDDEN_JOIN edges and warning on N:M or 1:N*1:N fan-out traps.")]
+    pub fn graphrag_find_join_path(&self, _params: Parameters<crate::ontology::JoinPathRequest>) -> Result<String, String> {
         Ok("Dispatched via call_tool".to_string())
     }
 }
