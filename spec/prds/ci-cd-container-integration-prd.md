@@ -88,20 +88,24 @@ flowchart TD
 ---
 
 ### 2. Kubernetes Helm Chart (`charts/graphrag`) & Helm CI Workflows
-**Objective:** Provide standardized Kubernetes deployment manifests for both ephemeral PR test environments and persistent dev/prod clusters.
+**Objective:** Provide standardized Kubernetes deployment manifests for both ephemeral PR test environments and persistent dev/prod clusters, including zero-rewrite Istio `VirtualService` composition.
 - **Chart Structure (`charts/graphrag/`):**
   ```
   charts/graphrag/
   ├── Chart.yaml                  # Chart metadata (name: graphrag, version: 0.1.0)
-  ├── values.yaml                 # Default image, service, resource, and config values
+  ├── values.yaml                 # Default image, service, virtualService, resource, and config values
   ├── configs/
-  │   └── config.yaml             # Mounted configuration template
+  │   └── config.yaml             # Mounted configuration template (includes api_prefix: "/api/graphrag/v1")
   └── templates/
       ├── _helpers.tpl            # Labels, names, and config checksum helpers
       ├── configmap.yaml          # ConfigMap mounted into the container
       ├── deployment.yaml         # Deployment exposing http (:8080) and hams (:8079)
-      └── service.yaml            # ClusterIP Service exposing port 80 (-> 8080) and hamsPort 8079
+      ├── service.yaml            # ClusterIP Service exposing port 80 (-> 8080) and hamsPort 8079
+      └── virtualservice.yaml     # Optional Istio VirtualService routing apiPrefix without path rewrites
   ```
+- **Zero-Rewrite Istio `VirtualService` (`templates/virtualservice.yaml`):**
+  - Gated by `.Values.virtualService.enabled` (default `false`, `hosts: ["ai.k8s"]`, `gateways: ["istio-ingress/k8s-gateway", "mesh"]`, `apiPrefix: "/api/graphrag/v1"`).
+  - Routes requests matching `uri.prefix: {{ .Values.virtualService.apiPrefix }}` directly to the GraphRAG Kubernetes `Service` on `.Values.service.port` without `rewrite` rules, matching `api_prefix: "/api/graphrag/v1"` in `configs/config.yaml`.
 - **HaMS Health Probes in `deployment.yaml`:**
   - **Liveness Probe:** `HTTP GET /health/alive` on port `hams` (`8079`).
   - **Readiness Probe:** `HTTP GET /health/ready` on port `hams` (`8079`).

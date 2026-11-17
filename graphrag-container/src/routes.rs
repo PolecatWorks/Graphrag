@@ -132,7 +132,7 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
-pub fn create_router() -> Router<AppState> {
+fn core_routes() -> Router<AppState> {
     Router::new()
         .route("/hello", get(hello))
         .route("/ingest", post(ingest_document))
@@ -147,8 +147,34 @@ pub fn create_router() -> Router<AppState> {
         .route("/communities/rebuild", post(rebuild_communities))
         .route("/communities/{id}", get(read_community).put(edit_community).delete(delete_community))
         .route("/mcp", post(handle_http_mcp))
+}
+
+pub fn create_router_with_prefix(api_prefix: &str) -> Router<AppState> {
+    let normalized = api_prefix.trim_end_matches('/');
+    let prefix = if normalized.is_empty() {
+        "/api/graphrag/v1"
+    } else {
+        normalized
+    };
+
+    let router = Router::new().nest(prefix, core_routes());
+
+    // Merge root routes for backward compatibility if prefix is not root
+    let router = if prefix != "/" {
+        router.merge(core_routes())
+    } else {
+        router
+    };
+
+    // Ensure /api/v1/mcp backward compatibility
+    router
         .route("/api/v1/mcp", post(handle_http_mcp))
         .layer(TraceLayer::new_for_http())
+}
+
+#[allow(dead_code)]
+pub fn create_router() -> Router<AppState> {
+    create_router_with_prefix("/api/graphrag/v1")
 }
 
 async fn handle_http_mcp(
@@ -400,6 +426,7 @@ mod tests {
         };
 
         let config = Arc::new(AppConfig {
+            api_prefix: "/api/graphrag/v1".to_string(),
             database: DatabaseConfig {
                 url: db_url,
                 pool_size: 1,
@@ -433,6 +460,7 @@ mod tests {
             .connect_lazy("postgres://mock:mock@localhost/mock")
             .unwrap();
         let config = Arc::new(AppConfig {
+            api_prefix: "/api/graphrag/v1".to_string(),
             database: DatabaseConfig {
                 url: "postgres://mock".to_string(),
                 pool_size: 1,
@@ -1127,5 +1155,97 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_prefixed_routes_and_backward_compatibility() {
+        let state = mock_app_state();
+
+        // 1. Test GET {api_prefix}/hello
+        let prefixed_app = create_router_with_prefix("/api/graphrag/v1").with_state(state.clone());
+        let resp = prefixed_app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/graphrag/v1/hello")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 2. Test GET /hello (root compatibility)
+        let root_app = create_router_with_prefix("/api/graphrag/v1").with_state(state.clone());
+        let resp = root_app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/hello")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 3. Test POST {api_prefix}/mcp (ping)
+        let mcp_prefixed_app = create_router_with_prefix("/api/graphrag/v1").with_state(state.clone());
+        let resp = mcp_prefixed_app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/graphrag/v1/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 4. Test POST /api/v1/mcp (legacy mcp compatibility)
+        let legacy_mcp_app = create_router_with_prefix("/api/graphrag/v1").with_state(state.clone());
+        let resp = legacy_mcp_app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"jsonrpc":"2.0","id":2,"method":"ping"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 5. Test POST /mcp (root mcp compatibility)
+        let root_mcp_app = create_router_with_prefix("/api/graphrag/v1").with_state(state.clone());
+        let resp = root_mcp_app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"jsonrpc":"2.0","id":3,"method":"ping"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 6. Test custom prefix
+        let custom_app = create_router_with_prefix("/api/custom/v2").with_state(state);
+        let resp = custom_app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/custom/v2/hello")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }
