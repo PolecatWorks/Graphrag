@@ -29,6 +29,7 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [17. Graph RAG Model Context Protocol (MCP) Service](./17-graph-rag-mcp-service-spec.md) - `complete`
 *   [18. CI/CD Container Integration](./18-ci-cd-container-integration-spec.md) - `complete`
 *   [19. API & MCP Tracing, Observability & Configurable Logging](./19-api-mcp-tracing-observability-spec.md) - `complete`
+*   [20. Configurable API Prefix & Istio VirtualService Composition](./20-configurable-api-prefix-and-virtualservice-spec.md) - `complete`
 
 
 

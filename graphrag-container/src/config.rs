@@ -14,6 +14,8 @@ use thiserror::Error;
 pub enum ConfigError {
     #[error("server_port must be a valid port number")]
     ZeroServerPort,
+    #[error("api_prefix must start with '/' and not end with '/': {0}")]
+    InvalidApiPrefix(String),
     #[error(transparent)]
     Database(#[from] crate::db::DatabaseError),
     #[error(transparent)]
@@ -24,8 +26,14 @@ pub enum ConfigError {
     Logging(#[from] LoggingError),
 }
 
+fn default_api_prefix() -> String {
+    "/api/graphrag/v1".to_string()
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
+    #[serde(default = "default_api_prefix")]
+    pub api_prefix: String,
     pub database: DatabaseConfig,
     pub server_host: String,
     pub server_port: u16,
@@ -53,6 +61,10 @@ impl AppConfig {
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {
+        if !self.api_prefix.starts_with('/') || (self.api_prefix.len() > 1 && self.api_prefix.ends_with('/')) {
+            return Err(ConfigError::InvalidApiPrefix(self.api_prefix.clone()));
+        }
+
         self.database.validate()?;
         self.llm.validate()?;
         self.mcp.validate()?;
@@ -78,6 +90,7 @@ mod tests {
 
     fn clear_env() {
         unsafe {
+            env::remove_var("GRAPHRAG_BE__API_PREFIX");
             env::remove_var("GRAPHRAG_BE__DATABASE__URL");
             env::remove_var("GRAPHRAG_BE__DATABASE__POOL_SIZE");
             env::remove_var("GRAPHRAG_BE__DATABASE__TIMEOUT_SECONDS");
@@ -90,6 +103,7 @@ mod tests {
 
     fn valid_app_config() -> AppConfig {
         AppConfig {
+            api_prefix: default_api_prefix(),
             database: DatabaseConfig {
                 url: "postgres://test".to_string(),
                 pool_size: 10,
@@ -254,6 +268,55 @@ mod tests {
             result.unwrap_err().to_string(),
             "llm.provider must not be empty"
         );
+    }
+
+    #[test]
+    fn test_default_api_prefix() {
+        let config = valid_app_config();
+        assert_eq!(config.api_prefix, "/api/graphrag/v1");
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_api_prefix_validation() {
+        let mut config = valid_app_config();
+        config.api_prefix = "api/graphrag/v1".to_string();
+        let res = config.validate();
+        assert!(matches!(res, Err(ConfigError::InvalidApiPrefix(_))));
+
+        config.api_prefix = "/api/graphrag/v1/".to_string();
+        let res = config.validate();
+        assert!(matches!(res, Err(ConfigError::InvalidApiPrefix(_))));
+
+        config.api_prefix = "/".to_string();
+        assert!(config.validate().is_ok());
+
+        config.api_prefix = "/custom/prefix".to_string();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_api_prefix_override_from_env() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60"
+        )
+        .unwrap();
+
+        clear_env();
+
+        unsafe {
+            env::set_var("GRAPHRAG_BE__API_PREFIX", "/api/custom/v1");
+        }
+
+        let config = AppConfig::load(Some(file.path().to_str().unwrap())).unwrap();
+
+        clear_env();
+
+        assert_eq!(config.api_prefix, "/api/custom/v1");
+        assert!(config.validate().is_ok());
     }
 }
 

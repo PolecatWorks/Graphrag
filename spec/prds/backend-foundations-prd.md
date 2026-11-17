@@ -56,8 +56,9 @@ flowchart TD
 **Objective:** Guarantee that the application operates only with valid, well-formed configuration and structured, inspectable error types, failing immediately upon startup if any properties are missing or invalid.
 - **CLI Argument Parsing (`clap` Derive):** Command-line arguments (e.g., `-c` / `--config <FILE>`) must be defined in `src/cli.rs` using `clap` with the `derive` feature (`#[derive(clap::Parser)]`, `#[derive(clap::Subcommand)]`, `#[derive(clap::Args)]`) rather than manual argument parsing or imperative builder chains.
 - **Centralized Loader:** All application configuration must be loaded into strongly typed structs at startup (e.g., via `config` or `figment` crate), taking the optional config path parsed by `Cli::parse()`.
-- **Modular Config Ownership & Delegated Validation:** Each domain module (`db`, `llm_tools`, etc.) defines and owns its specific configuration struct (`DatabaseConfig`, `LlmConfig`), implements its own `.validate()` method returning its domain `thiserror::Error` enum (`DatabaseError`, `LlmError`), and maintains unit tests covering its field-level validation rules. The central `AppConfig` composes these domain structs, validates top-level server properties, and delegates domain validation to each subsystem (`self.database.validate()?`, `self.llm.validate()?`) into `ConfigError` via `#[error(transparent)]`.
-- **No Stringly-Typed Errors (`Result<_, String>`):** All modules (`config`, `db`, `llm_tools`, `hams_tools`) must use strongly typed `thiserror::Error` enums (`ConfigError`, `DatabaseError`, `LlmError`, `HamsError`) instead of `String` errors.
+- **Configurable Service Prefix (`api_prefix`):** `AppConfig` includes a top-level `api_prefix: String` field defaulting to `"/api/graphrag/v1"`, overridable via YAML `api_prefix` or environment variable `GRAPHRAG_BE__API_PREFIX`. `AppConfig::validate()` enforces that `api_prefix` is non-empty, starts with `'/'`, and does not end with `'/'` when length > 1, returning `ConfigError::InvalidApiPrefix(String)` on violation.
+- **Modular Config Ownership & Delegated Validation:** Each domain module (`db`, `llm_tools`, `mcp`, `logging`, etc.) defines and owns its specific configuration struct (`DatabaseConfig`, `LlmConfig`, `McpConfig`, `LoggingConfig`), implements its own `.validate()` method returning its domain `thiserror::Error` enum (`DatabaseError`, `LlmError`, `McpError`, `LoggingError`), and maintains unit tests covering its field-level validation rules. The central `AppConfig` composes these domain structs, validates top-level server properties (`server_port`, `api_prefix`), and delegates domain validation to each subsystem (`self.database.validate()?`, `self.llm.validate()?`, `self.mcp.validate()?`, `self.logging.validate()?`) into `ConfigError` via `#[error(transparent)]`.
+- **No Stringly-Typed Errors (`Result<_, String>`):** All modules (`config`, `db`, `llm_tools`, `hams_tools`, `mcp`, `logging`) must use strongly typed `thiserror::Error` enums (`ConfigError`, `DatabaseError`, `LlmError`, `HamsError`, `McpError`, `LoggingError`) instead of `String` errors.
 - **Fail-Fast Validation:** The system must validate the configuration scheme before establishing database connections or binding network listeners.
 - **Zero Direct Runtime Environment Variables:** Accessing environment variables directly in business logic (e.g., `std::env::var`) is strictly prohibited. All environment variables must be loaded and merged into the central `AppConfig` at startup.
 - **No Hardcoded Defaults in Logic:** Hardcoded fallback values in handlers or execution paths are not allowed.
@@ -67,8 +68,11 @@ classDiagram
     class ConfigError {
         <<enumeration>>
         ZeroServerPort
+        InvalidApiPrefix(String)
         Database(DatabaseError)
         Llm(LlmError)
+        Mcp(McpError)
+        Logging(LoggingError)
     }
     class DatabaseError {
         <<enumeration>>
@@ -118,11 +122,12 @@ classDiagram
 - **pgvector Integration:** The backend must support vector operations (e.g., semantic search) and must explicitly verify the existence of the `pgvector` extension during the application startup process.
 - **Automatic Migrations:** Database schema definitions are represented as `.up.sql` migration scripts. The application must run these migrations automatically and sequentially upon startup before serving traffic.
 
-### 4. Axum Web Service
-**Objective:** Serve scalable and performant REST APIs.
-- **Framework:** The primary webservice will utilize `Axum` built on top of the Tokio async runtime.
-- **App State Injection:** The webservice must receive a shared `AppState` containing the database connection pool, metrics recorder, and read-only configuration context.
-- **Routing & Handlers:** Routes should be declarative and well-separated into functional domain modules.
+### 4. Axum Web Service & Zero-Rewrite Istio VirtualService Composition
+**Objective:** Serve scalable and performant REST and MCP APIs under a configurable service prefix for Kubernetes/Istio ingress composition without URI path rewrites.
+- **Framework:** The primary webservice utilizes `Axum` built on top of the Tokio async runtime.
+- **App State Injection:** The webservice receives a shared `AppState` containing the database connection pool, LLM client, `GraphStore`, MCP server, and read-only `AppConfig`.
+- **Configurable Prefix Nesting (`create_router_with_prefix`):** The Axum router nests all REST and MCP endpoints under `app_state.config.api_prefix` (default `"/api/graphrag/v1"`, e.g. `/api/graphrag/v1/hello`, `/api/graphrag/v1/ingest`, `/api/graphrag/v1/query`, `/api/graphrag/v1/documents`, `/api/graphrag/v1/nodes`, `/api/graphrag/v1/edges`, `/api/graphrag/v1/communities`, `/api/graphrag/v1/mcp`) so that an Istio `VirtualService` can route traffic matching `prefix: /api/graphrag/v1` directly to the service **without URI path rewrites**. Root-level route aliases (`/hello`, `/ingest`, `/query`, `/documents`, `/nodes`, `/edges`, `/communities`, `/mcp`, `/api/v1/mcp`) remain mounted at `/` for backward-compatible local development and test harness execution, while HaMS probes remain isolated on `:8079` (`/hams/*` / `/health/*`).
+- **Routing & Handlers:** Routes are declarative and well-separated into functional domain modules.
 
 ### 5. Health Monitoring Sidecar (HaMS)
 **Objective:** Decouple application health reporting and metric telemetry from the primary business logic webservice.

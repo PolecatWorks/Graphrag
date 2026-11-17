@@ -156,6 +156,7 @@ mod tests {
             .connect_lazy("postgres://mock:mock@localhost/mock")
             .unwrap();
         let config = Arc::new(AppConfig {
+            api_prefix: "/api/graphrag/v1".to_string(),
             database: DatabaseConfig {
                 url: "postgres://mock".to_string(),
                 pool_size: 1,

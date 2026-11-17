@@ -1,0 +1,23 @@
+{{- if .Values.virtualService.enabled -}}
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "graphrag.fullname" . }}
+  labels:
+    {{- include "graphrag.labels" . | nindent 4 }}
+spec:
+  hosts:
+    {{- toYaml .Values.virtualService.hosts | nindent 4 }}
+  gateways:
+    {{- toYaml .Values.virtualService.gateways | nindent 4 }}
+  http:
+    - name: {{ include "graphrag.fullname" . }}
+      match:
+        - uri:
+            prefix: {{ .Values.virtualService.apiPrefix }}
+      route:
+        - destination:
+            host: {{ include "graphrag.fullname" . }}
+            port:
+              number: {{ .Values.service.port }}
+{{- end }}
