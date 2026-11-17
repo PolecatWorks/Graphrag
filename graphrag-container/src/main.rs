@@ -98,7 +98,7 @@ async fn main() {
         mcp_server: Arc::new(crate::mcp::server::GraphRagMcpServer::new()),
     };
 
-    let app = routes::create_router().with_state(app_state);
+    let app = routes::create_router_with_prefix(&app_state.config.api_prefix).with_state(app_state);
 
     let address = format!("{}:{}", host, port);
     let listener = match tokio::net::TcpListener::bind(&address).await {

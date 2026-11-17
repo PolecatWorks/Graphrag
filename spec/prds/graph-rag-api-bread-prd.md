@@ -55,12 +55,12 @@ erDiagram
 flowchart TD
     Client["API Consumer / Admin UI / Robot Test Suite"]
 
-    subgraph "Axum REST Router (:8080)"
-        DocsAPI["/documents\nBREAD Endpoints"]
-        NodesAPI["/nodes\nBREAD Endpoints"]
-        EdgesAPI["/edges\nBREAD Endpoints"]
-        CommAPI["/communities\nBREAD & Rebuild Endpoints"]
-        PipelineAPI["/ingest & /query\nPipeline Endpoints"]
+    subgraph "Axum REST Router (:8080, nested at ${api_prefix} = /api/graphrag/v1 & root /)"
+        DocsAPI["${api_prefix}/documents\nBREAD Endpoints"]
+        NodesAPI["${api_prefix}/nodes\nBREAD Endpoints"]
+        EdgesAPI["${api_prefix}/edges\nBREAD Endpoints"]
+        CommAPI["${api_prefix}/communities\nBREAD & Rebuild Endpoints"]
+        PipelineAPI["${api_prefix}/ingest & ${api_prefix}/query\nPipeline Endpoints"]
     end
 
     subgraph "GraphStore Synchronization Layer"
@@ -92,9 +92,17 @@ flowchart TD
 
 ---
 
+## Configurable Service Prefix (`api_prefix`) & Zero-Rewrite Istio Routing
+
+All BREAD and pipeline routes are mounted under the configurable `AppConfig.api_prefix` (defaulting to `"/api/graphrag/v1"`, overridable via YAML `api_prefix` or `GRAPHRAG_BE__API_PREFIX`) so Kubernetes Istio `VirtualService` definitions can route `/api/graphrag/v1/*` directly to the GraphRAG container without URI path rewrites. For backward compatibility with existing local scripts and integration test suites, the same core routes remain simultaneously merged at the root `/` path:
+- Prefixed: `/api/graphrag/v1/hello`, `/api/graphrag/v1/ingest`, `/api/graphrag/v1/query`, `/api/graphrag/v1/documents`, `/api/graphrag/v1/nodes`, `/api/graphrag/v1/edges`, `/api/graphrag/v1/communities`, `/api/graphrag/v1/mcp`
+- Root aliases: `/hello`, `/ingest`, `/query`, `/documents`, `/nodes`, `/edges`, `/communities`, `/mcp`, `/api/v1/mcp`
+
+---
+
 ## Core Resource BREAD Requirements
 
-### 1. Documents Resource (`/documents`)
+### 1. Documents Resource (`/documents` & `${api_prefix}/documents`)
 
 Manages source Markdown documents (`graph_documents`) and coordinates cascading updates to extracted nodes and edges.
 

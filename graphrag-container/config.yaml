@@ -2,6 +2,7 @@ database:
   url: "postgres://postgres:mysecretpassword@localhost:5432/graphrag"
   pool_size: 10
   timeout_seconds: 30
+api_prefix: "/api/graphrag/v1"
 server_host: "127.0.0.1"
 server_port: 8080
 hams:

@@ -14,7 +14,7 @@ By exposing GraphRAG-RS as an MCP server over standard HTTP JSON-RPC 2.0 transpo
 
 1. **Architectural Parity with `aad-mcp-container`**:
    - **`rmcp` + `schemars` Tool Router**: Use the `rmcp` crate (`#[tool_router]`, `#[tool]`, `#[tool_handler]`, `ServerHandler`, `ToolRouter<Self>`, `Parameters<T>`) together with `schemars::JsonSchema` on tool request structs to automatically generate strict Draft-07 JSON Schemas for `tools/list`.
-   - **Direct HTTP JSON-RPC 2.0 Transport**: Expose stateless HTTP `POST` JSON-RPC 2.0 endpoints at `/mcp` and `${api_prefix}/v1/mcp` (default `/api/v1/mcp`) on the primary Axum server (`:8080`), processing `application/json` payloads directly without requiring stateful SSE sessions.
+   - **Direct HTTP JSON-RPC 2.0 Transport**: Expose stateless HTTP `POST` JSON-RPC 2.0 endpoints at `${api_prefix}/mcp` (default `/api/graphrag/v1/mcp`), `/mcp`, and `/api/v1/mcp` on the primary Axum server (`:8080`), processing `application/json` payloads directly without requiring stateful SSE sessions or Istio URI path rewrites.
    - **Full MCP Lifecycle Compliance**: Support `initialize`, `notifications/initialized` (returning `204 No Content`), `ping`, `tools/list`, and `tools/call`.
 2. **Strict Compliance with GraphRAG-RS Standards (`AGENTS.md`)**:
    - **Modular Config Ownership (`McpConfig`)**: Define `McpConfig` (`enabled`, `api_prefix`, `server_name`, `instructions`) in `src/mcp/mod.rs` with fail-fast validation (`.validate() -> Result<(), McpError>`) delegated from `AppConfig::validate()` in `src/config.rs`.
@@ -44,7 +44,7 @@ flowchart TD
 
     subgraph Container["GraphRAG-RS Service Process"]
         CLI["Clap CLI Entrypoint (src/cli.rs)\n(-c / --config config.yaml)"]
-        Config["Centralized AppConfig (src/config.rs)\n(DatabaseConfig + LlmConfig + McpConfig + HamsConfig)"]
+        Config["Centralized AppConfig (src/config.rs)\n(api_prefix + DatabaseConfig + LlmConfig + McpConfig + HamsConfig)"]
 
         subgraph HealthSidecar["HaMS Health Subsystem (:8079)"]
             Alive["/health/alive"]
@@ -53,8 +53,8 @@ flowchart TD
         end
 
         subgraph AxumServer["Axum Web Service (:8080)"]
-            REST["REST Pipeline & BREAD Routes\n(/ingest, /query, /documents, /nodes, /edges, /communities)"]
-            MCPRoutes["MCP HTTP JSON-RPC 2.0 Routes\n(POST /mcp, POST /api/v1/mcp)"]
+            REST["REST Pipeline & BREAD Routes\n(${api_prefix}/ingest, /query, /documents, /nodes, /edges, /communities)"]
+            MCPRoutes["MCP HTTP JSON-RPC 2.0 Routes\n(POST ${api_prefix}/mcp, POST /mcp, POST /api/v1/mcp)"]
             RPCDispatcher["JSON-RPC 2.0 Dispatcher\n(src/mcp/rpc.rs)"]
             ToolRouter["GraphRagMcpServer (#[tool_router])\n(src/mcp/server.rs)"]
         end
@@ -95,31 +95,31 @@ The MCP HTTP JSON-RPC 2.0 subsystem implements the exact request/response handsh
 sequenceDiagram
     autonumber
     actor Agent as AI Client / Agent
-    participant Axum as Axum Router (POST /api/v1/mcp)
+    participant Axum as Axum Router (POST /api/graphrag/v1/mcp)
     participant RPC as src/mcp/rpc.rs (handle_json_rpc)
     participant MCP as GraphRagMcpServer (rmcp ToolRouter)
     participant Store as GraphStore (PostgreSQL + pgvector)
 
-    Agent->>Axum: POST /api/v1/mcp {"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}
+    Agent->>Axum: POST /api/graphrag/v1/mcp {"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}
     Axum->>RPC: handle_json_rpc(&state, payload)
     RPC->>MCP: state.mcp_server.info()
     MCP-->>RPC: ServerInfo (protocolVersion: "2024-11-05", capabilities.tools)
     RPC-->>Axum: Some(JSON-RPC Result)
     Axum-->>Agent: 200 OK {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05",...}}
 
-    Agent->>Axum: POST /api/v1/mcp {"jsonrpc":"2.0","method":"notifications/initialized"}
+    Agent->>Axum: POST /api/graphrag/v1/mcp {"jsonrpc":"2.0","method":"notifications/initialized"}
     Axum->>RPC: handle_json_rpc(&state, payload) (id is None)
     RPC-->>Axum: None
     Axum-->>Agent: 204 No Content
 
-    Agent->>Axum: POST /api/v1/mcp {"jsonrpc":"2.0","id":2,"method":"tools/list"}
+    Agent->>Axum: POST /api/graphrag/v1/mcp {"jsonrpc":"2.0","id":2,"method":"tools/list"}
     Axum->>RPC: handle_json_rpc(&state, payload)
     RPC->>MCP: state.mcp_server.list_tools()
     MCP-->>RPC: Vec<rmcp::model::Tool> (schemars Draft-07 inputSchema)
     RPC-->>Axum: Some({"tools": [...]})
     Axum-->>Agent: 200 OK {"jsonrpc":"2.0","id":2,"result":{"tools":[...]}}
 
-    Agent->>Axum: POST /api/v1/mcp {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"node_browse","arguments":{"semantic_query":"lunar module"}}}
+    Agent->>Axum: POST /api/graphrag/v1/mcp {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"node_browse","arguments":{"semantic_query":"lunar module"}}}
     Axum->>RPC: handle_json_rpc(&state, payload)
     RPC->>MCP: state.mcp_server.call_tool(&state, "node_browse", arguments)
     MCP->>Store: browse_nodes(filter)
@@ -139,15 +139,15 @@ In accordance with `AGENTS.md`, the `mcp` module (`src/mcp/mod.rs`) defines and 
 ```yaml
 mcp:
   enabled: true
-  api_prefix: "/api"
+  api_prefix: "/api/graphrag/v1"
   server_name: "graphrag-mcp"
   instructions: "GraphRAG-RS Model Context Protocol Server for knowledge graph ingestion, hybrid RAG querying, and BREAD data management."
 ```
 
-- **Environment Variable Overrides**: Configurable via `APP_MCP__ENABLED`, `APP_MCP__API_PREFIX`, `APP_MCP__SERVER_NAME`, and `APP_MCP__INSTRUCTIONS`.
+- **Environment Variable Overrides**: Configurable via `GRAPHRAG_BE__MCP__ENABLED`, `GRAPHRAG_BE__MCP__API_PREFIX`, `GRAPHRAG_BE__MCP__SERVER_NAME`, and `GRAPHRAG_BE__MCP__INSTRUCTIONS`.
 - **Fail-Fast Validation Rules (`McpConfig::validate() -> Result<(), McpError>`)**:
   - When `enabled` is `true`:
-    - `api_prefix` must be non-empty and start with `'/'` (`McpError::InvalidApiPrefix`).
+    - `api_prefix` must be non-empty, start with `'/'`, and not end with `'/'` when length > 1 (`McpError::InvalidApiPrefix`).
     - `server_name` must be non-empty after trimming (`McpError::EmptyServerName`).
     - `instructions` must be non-empty after trimming (`McpError::EmptyInstructions`).
 

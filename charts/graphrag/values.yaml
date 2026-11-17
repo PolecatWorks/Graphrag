@@ -33,3 +33,12 @@ volumeMounts: []
 volumes: []
 
 config: {}
+
+virtualService:
+  enabled: false
+  hosts:
+    - ai.k8s
+  gateways:
+    - istio-ingress/k8s-gateway
+    - mesh
+  apiPrefix: /api/graphrag/v1
