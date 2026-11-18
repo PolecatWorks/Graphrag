@@ -28,3 +28,19 @@ Verify Axum Hello Endpoint
     [Tags]    api    foundation
     ${body}=    Get Hello Endpoint
     Should Be Equal As Strings    ${body}    Hello, World!
+
+Verify Axum Configured Prefix Hello Endpoint
+    [Documentation]    Confirms the primary Axum HTTP router responds on GET /api/graphrag/v1/hello.
+    [Tags]    api    prefix    positive
+    ${response}=    Get Prefix Endpoint    /api/graphrag/v1/hello    expected_status=200
+    Should Be Equal As Strings    ${response}    Hello, World!
+
+Verify Axum Negative: Unknown Prefix Returns 404
+    [Documentation]    Confirms that requests to non-existent API prefixes return HTTP 404.
+    [Tags]    api    prefix    negative
+    ${response}=    Get Prefix Endpoint    /api/unknown-service/v1/hello    expected_status=404
+
+Verify Axum Negative: Incomplete Prefix Path Returns 404
+    [Documentation]    Confirms that requests with missing path segments return HTTP 404.
+    [Tags]    api    prefix    negative
+    ${response}=    Get Prefix Endpoint    /api/graphrag/hello    expected_status=404
