@@ -57,6 +57,17 @@ class GraphragApiLibrary:
             )
         return resp.text
 
+    def get_prefix_endpoint(self, path: str, expected_status: int = 200) -> str:
+        """Calls a specific path on the running Graphrag Axum service and asserts the status."""
+        path_clean = "/" + path.lstrip("/")
+        url = f"{self.be_base_url}{path_clean}"
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != expected_status:
+            raise AssertionError(
+                f"GET {url} expected status {expected_status}, got {resp.status_code}: {resp.text}"
+            )
+        return resp.text
+
     def load_markdown_file(self, file_path: str) -> Dict[str, Any]:
         """Reads a markdown file from disk and ingests it via POST /ingest on the Graphrag API."""
         if not os.path.isfile(file_path):
