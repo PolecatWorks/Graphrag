@@ -302,7 +302,7 @@ jobs:
 
       - name: Trigger Rolling Restart
         run: |
-          kubectl rollout restart deployment/graphrag -n graphrag-dev || echo "Deployment graphrag in graphrag-dev not yet provisioned"
+          kubectl rollout restart deployment/graphrag -n agent-as-data-dev || echo "Deployment graphrag in agent-as-data-dev not yet provisioned"
 
   ci-success:
     name: Graphrag Docker Success
