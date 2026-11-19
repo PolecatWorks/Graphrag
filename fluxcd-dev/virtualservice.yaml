@@ -1,0 +1,19 @@
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: graphrag
+spec:
+  hosts:
+    - ai.k8s
+  gateways:
+    - istio-ingress/k8s-gateway
+    - mesh
+  http:
+    - name: graphrag
+      match:
+        - uri:
+            prefix: /api/graphrag/v1
+      route:
+        - destination:
+            host: graphrag
