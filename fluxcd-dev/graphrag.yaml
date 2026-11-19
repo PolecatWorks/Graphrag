@@ -29,6 +29,14 @@ spec:
       tag: main
       pullPolicy: Always
     config:
+      database:
+        url: postgres://db0_agent_as_data:$(DB_PASSWORD)@cnpg-db0-cluster-rw.dbs.svc.cluster.local:5432/graphrag
       llm:
         base_url: http://ollama.ollama:11434/v1
         model: llama3.1:8b
+    env:
+      - name: DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db0-agent-as-data-user
+            key: password
