@@ -89,6 +89,7 @@ dependencies = [
  "axum",
  "clap",
  "figment",
+ "figment_file_provider_adapter",
  "hams",
  "http-body-util",
  "rig-core",
@@ -108,6 +109,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "url",
  "uuid",
 ]
 
@@ -952,6 +954,15 @@ dependencies = [
  "serde_yaml",
  "uncased",
  "version_check",
+]
+
+[[package]]
+name = "figment_file_provider_adapter"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "353e1e0896797efa3728309408a50d307284d5af4c733fa1859edae2bc80a314"
+dependencies = [
+ "figment",
 ]
 
 [[package]]
