@@ -1,6 +1,7 @@
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::time::Duration;
+use url::Url;
 
 #[derive(Debug, thiserror::Error)]
 pub enum DatabaseError {
@@ -22,16 +23,90 @@ pub enum DatabaseError {
     MigrationFailed(#[from] sqlx::migrate::MigrateError),
 }
 
+/// A structured database URL configuration supporting file-based secret resolution.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct DatabaseUrlConfig {
+    pub url: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum DatabaseUrlHelper {
+    Structured {
+        url: String,
+        username: Option<String>,
+        password: Option<String>,
+    },
+    Simple(String),
+}
+
+impl<'de> Deserialize<'de> for DatabaseUrlConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let helper = DatabaseUrlHelper::deserialize(deserializer)?;
+        match helper {
+            DatabaseUrlHelper::Structured {
+                url,
+                username,
+                password,
+            } => Ok(Self {
+                url,
+                username,
+                password,
+            }),
+            DatabaseUrlHelper::Simple(url) => Ok(Self {
+                url,
+                username: None,
+                password: None,
+            }),
+        }
+    }
+}
+
+impl DatabaseUrlConfig {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            username: None,
+            password: None,
+        }
+    }
+
+    /// Assembles the final connection URL, incorporating username and password if set.
+    pub fn connection_url(&self) -> String {
+        if self.username.is_none() && self.password.is_none() {
+            return self.url.clone();
+        }
+
+        if let Ok(mut parsed) = Url::parse(&self.url) {
+            if let Some(user) = &self.username {
+                let _ = parsed.set_username(user);
+            }
+            if let Some(pass) = &self.password {
+                let _ = parsed.set_password(Some(pass));
+            }
+            parsed.to_string()
+        } else {
+            self.url.clone()
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct DatabaseConfig {
-    pub url: String,
+    pub url: DatabaseUrlConfig,
     pub pool_size: u32,
     pub timeout_seconds: u64,
 }
 
 impl DatabaseConfig {
     pub fn validate(&self) -> Result<(), DatabaseError> {
-        if self.url.trim().is_empty() {
+        let conn_url = self.url.connection_url();
+        if conn_url.trim().is_empty() {
             return Err(DatabaseError::EmptyUrl);
         }
         if self.pool_size == 0 {
@@ -50,7 +125,7 @@ pub async fn init_db(config: &DatabaseConfig) -> Result<PgPool, DatabaseError> {
         .acquire_timeout(Duration::from_secs(config.timeout_seconds));
 
     let pool = pool_options
-        .connect(&config.url)
+        .connect(&config.url.connection_url())
         .await
         .map_err(DatabaseError::ConnectionFailed)?;
 
@@ -81,7 +156,7 @@ mod tests {
 
     fn valid_database_config() -> DatabaseConfig {
         DatabaseConfig {
-            url: "postgres://localhost:5432/test".to_string(),
+            url: DatabaseUrlConfig::new("postgres://localhost:5432/test"),
             pool_size: 10,
             timeout_seconds: 30,
         }
@@ -93,6 +168,25 @@ mod tests {
         assert!(config.validate().is_ok());
     }
 
+    #[test]
+    fn test_database_url_config_connection_url_simple() {
+        let url_config = DatabaseUrlConfig::new("postgres://localhost:5432/test");
+        assert_eq!(url_config.connection_url(), "postgres://localhost:5432/test");
+    }
+
+    #[test]
+    fn test_database_url_config_connection_url_with_credentials() {
+        let url_config = DatabaseUrlConfig {
+            url: "postgres://localhost:5432/test".to_string(),
+            username: Some("myuser".to_string()),
+            password: Some("mypass".to_string()),
+        };
+        assert_eq!(
+            url_config.connection_url(),
+            "postgres://myuser:mypass@localhost:5432/test"
+        );
+    }
+
     #[rstest]
     #[case("")]
     #[case(" ")]
@@ -102,7 +196,7 @@ mod tests {
     #[case(" \t\n ")]
     fn test_database_config_validate_empty_url(#[case] url: &str) {
         let mut config = valid_database_config();
-        config.url = url.to_string();
+        config.url = DatabaseUrlConfig::new(url);
 
         let result = config.validate();
         assert!(matches!(result, Err(DatabaseError::EmptyUrl)));

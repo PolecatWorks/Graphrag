@@ -6,8 +6,10 @@ use figment::{
     Figment,
     providers::{Env, Format, Yaml},
 };
+use figment_file_provider_adapter::FileAdapter;
 use hams::hams::config::HamsConfig;
 use serde::Deserialize;
+use std::path::Path;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -48,11 +50,16 @@ pub struct AppConfig {
 
 impl AppConfig {
     #[allow(clippy::result_large_err)]
-    pub fn load(config_path: Option<&str>) -> Result<Self, figment::Error> {
+    pub fn load(config_path: Option<&str>, secrets_dir: Option<&str>) -> Result<Self, figment::Error> {
         let mut figment = Figment::new();
 
         if let Some(path) = config_path {
-            figment = figment.merge(Yaml::file(path));
+            if let Some(s_dir) = secrets_dir {
+                let adapter = FileAdapter::wrap(Yaml::file(path)).relative_to_dir(Path::new(s_dir));
+                figment = figment.merge(adapter);
+            } else {
+                figment = figment.merge(Yaml::file(path));
+            }
         }
 
         figment = figment.merge(Env::prefixed("GRAPHRAG_BE__").split("__"));
@@ -105,7 +112,7 @@ mod tests {
         AppConfig {
             api_prefix: default_api_prefix(),
             database: DatabaseConfig {
-                url: "postgres://test".to_string(),
+                url: crate::db::DatabaseUrlConfig::new("postgres://test"),
                 pool_size: 10,
                 timeout_seconds: 30,
             },
@@ -136,11 +143,44 @@ mod tests {
 
         clear_env();
 
-        let config = AppConfig::load(Some(file.path().to_str().unwrap())).unwrap();
-        assert_eq!(config.database.url, "postgres://yaml");
+        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
+        assert_eq!(config.database.url.connection_url(), "postgres://yaml");
         assert_eq!(config.database.pool_size, 10);
         assert_eq!(config.database.timeout_seconds, 30);
         assert_eq!(config.server_port, 8081);
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_load_with_secrets_dir() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let secrets_dir = tempfile::tempdir().unwrap();
+        let conn_dir = secrets_dir.path().join("persistence/db/connection");
+        std::fs::create_dir_all(&conn_dir).unwrap();
+
+        std::fs::write(conn_dir.join("username"), "testuser").unwrap();
+        std::fs::write(conn_dir.join("password"), "testpass").unwrap();
+
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            "database:\n  url:\n    url: postgres://localhost:5432/graphrag\n    username_file: persistence/db/connection/username\n    password_file: persistence/db/connection/password\n  pool_size: 5\n  timeout_seconds: 10\nserver_host: 127.0.0.1\nserver_port: 8080\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60"
+        )
+        .unwrap();
+
+        clear_env();
+
+        let config = AppConfig::load(
+            Some(file.path().to_str().unwrap()),
+            Some(secrets_dir.path().to_str().unwrap()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            config.database.url.connection_url(),
+            "postgres://testuser:testpass@localhost:5432/graphrag"
+        );
+        assert_eq!(config.database.pool_size, 5);
         assert!(config.validate().is_ok());
     }
 
@@ -163,11 +203,11 @@ mod tests {
             env::set_var("GRAPHRAG_BE__SERVER_PORT", "9090");
         }
 
-        let config = AppConfig::load(Some(file.path().to_str().unwrap())).unwrap();
+        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
 
         clear_env();
 
-        assert_eq!(config.database.url, "postgres://env");
+        assert_eq!(config.database.url.connection_url(), "postgres://env");
         assert_eq!(config.database.pool_size, 20);
         assert_eq!(config.database.timeout_seconds, 60);
         assert_eq!(config.server_port, 9090);
@@ -190,7 +230,7 @@ mod tests {
             env::set_var("GRAPHRAG_BE__LOGGING__FILTER", "debug,app=trace");
         }
 
-        let config = AppConfig::load(Some(file.path().to_str().unwrap())).unwrap();
+        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
 
         clear_env();
 
@@ -211,7 +251,7 @@ mod tests {
 
         clear_env();
 
-        let config = AppConfig::load(Some(file.path().to_str().unwrap())).unwrap();
+        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
         let res = config.validate();
         assert!(res.is_err());
         assert!(matches!(res.unwrap_err(), ConfigError::Logging(_)));
@@ -241,7 +281,7 @@ mod tests {
     #[test]
     fn test_validate_delegates_to_database_config() {
         let mut config = valid_app_config();
-        config.database.url = "   ".to_string();
+        config.database.url = crate::db::DatabaseUrlConfig::new("   ");
 
         let result = config.validate();
         assert!(matches!(
@@ -311,7 +351,7 @@ mod tests {
             env::set_var("GRAPHRAG_BE__API_PREFIX", "/api/custom/v1");
         }
 
-        let config = AppConfig::load(Some(file.path().to_str().unwrap())).unwrap();
+        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
 
         clear_env();
 

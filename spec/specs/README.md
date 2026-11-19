@@ -30,6 +30,7 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [18. CI/CD Container Integration](./18-ci-cd-container-integration-spec.md) - `complete`
 *   [19. API & MCP Tracing, Observability & Configurable Logging](./19-api-mcp-tracing-observability-spec.md) - `complete`
 *   [20. Configurable API Prefix & Istio VirtualService Composition](./20-configurable-api-prefix-and-virtualservice-spec.md) - `complete`
+*   [21. File-Based Database Secrets & Config Resolution](./21-file-based-secrets-config-spec.md) - `complete`
 
 
 

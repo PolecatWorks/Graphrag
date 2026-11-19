@@ -54,8 +54,8 @@ flowchart TD
 
 ### 1. Configuration Loading & Typed Error Hierarchy
 **Objective:** Guarantee that the application operates only with valid, well-formed configuration and structured, inspectable error types, failing immediately upon startup if any properties are missing or invalid.
-- **CLI Argument Parsing (`clap` Derive):** Command-line arguments (e.g., `-c` / `--config <FILE>`) must be defined in `src/cli.rs` using `clap` with the `derive` feature (`#[derive(clap::Parser)]`, `#[derive(clap::Subcommand)]`, `#[derive(clap::Args)]`) rather than manual argument parsing or imperative builder chains.
-- **Centralized Loader:** All application configuration must be loaded into strongly typed structs at startup (e.g., via `config` or `figment` crate), taking the optional config path parsed by `Cli::parse()`.
+- **CLI Argument Parsing (`clap` Derive):** Command-line arguments (`-c` / `--config <FILE>`, `-s` / `--secrets-dir <DIR>`) must be defined in `src/cli.rs` using `clap` with the `derive` feature (`#[derive(clap::Parser)]`, `#[derive(clap::Subcommand)]`, `#[derive(clap::Args)]`) rather than manual argument parsing or imperative builder chains.
+- **Centralized Loader with Secrets Directory:** All application configuration must be loaded into strongly typed structs at startup (e.g., via `config`, `figment`, or `figment_file_provider_adapter`), taking the optional config path and optional secrets directory parsed by `Cli::parse()`. If file-based credential paths (`username_file`, `password_file`) are configured, the loader reads them relative to `secrets_dir` without embedding plaintext credentials into config files or environment variables.
 - **Configurable Service Prefix (`api_prefix`):** `AppConfig` includes a top-level `api_prefix: String` field defaulting to `"/api/graphrag/v1"`, overridable via YAML `api_prefix` or environment variable `GRAPHRAG_BE__API_PREFIX`. `AppConfig::validate()` enforces that `api_prefix` is non-empty, starts with `'/'`, and does not end with `'/'` when length > 1, returning `ConfigError::InvalidApiPrefix(String)` on violation.
 - **Modular Config Ownership & Delegated Validation:** Each domain module (`db`, `llm_tools`, `mcp`, `logging`, etc.) defines and owns its specific configuration struct (`DatabaseConfig`, `LlmConfig`, `McpConfig`, `LoggingConfig`), implements its own `.validate()` method returning its domain `thiserror::Error` enum (`DatabaseError`, `LlmError`, `McpError`, `LoggingError`), and maintains unit tests covering its field-level validation rules. The central `AppConfig` composes these domain structs, validates top-level server properties (`server_port`, `api_prefix`), and delegates domain validation to each subsystem (`self.database.validate()?`, `self.llm.validate()?`, `self.mcp.validate()?`, `self.logging.validate()?`) into `ConfigError` via `#[error(transparent)]`.
 - **No Stringly-Typed Errors (`Result<_, String>`):** All modules (`config`, `db`, `llm_tools`, `hams_tools`, `mcp`, `logging`) must use strongly typed `thiserror::Error` enums (`ConfigError`, `DatabaseError`, `LlmError`, `HamsError`, `McpError`, `LoggingError`) instead of `String` errors.
@@ -117,7 +117,16 @@ classDiagram
 
 ### 3. Database & Storage Layer
 **Objective:** Manage structured relational data and high-dimensional vector embeddings safely and predictably.
-- **Domain Configuration & Error Type (`DatabaseConfig`, `DatabaseError`):** The `db` module (`src/db.rs`) owns `DatabaseConfig` (`url`, `pool_size`, `timeout_seconds`), `DatabaseError` (`thiserror::Error`), its `.validate() -> Result<(), DatabaseError>` implementation, and unit tests for database configuration validation.
+- **Domain Configuration & Error Type (`DatabaseConfig`, `DatabaseError`):** The `db` module (`src/db.rs`) owns `DatabaseConfig`, `DatabaseError` (`thiserror::Error`), its `.validate() -> Result<(), DatabaseError>` implementation, and unit tests for database configuration validation.
+- **File-Based Secrets & Structured Database URL (`DatabaseUrlConfig` / `DatabaseUrlHelper`):** `DatabaseConfig.url` supports either a simple direct connection string (`url: "postgres://..."`) or structured connection settings with file-based secret resolution:
+  ```yaml
+  database:
+    url:
+      url: "postgres://localhost:5432/graphrag"
+      username_file: "persistence/db/connection/username"
+      password_file: "persistence/db/connection/password"
+  ```
+  When `secrets_dir` (CLI `--secrets-dir <DIR>`, defaulting to `"config"` or `"."`) is provided, file-based secrets referenced by `username_file` and `password_file` are resolved relative to the secrets directory and merged into the active connection URL.
 - **PostgreSQL Connection Pool:** Application state must maintain a connection pool (via `sqlx`) to PostgreSQL (`init_db(&DatabaseConfig) -> Result<PgPool, DatabaseError>`).
 - **pgvector Integration:** The backend must support vector operations (e.g., semantic search) and must explicitly verify the existence of the `pgvector` extension during the application startup process.
 - **Automatic Migrations:** Database schema definitions are represented as `.up.sql` migration scripts. The application must run these migrations automatically and sequentially upon startup before serving traffic.
