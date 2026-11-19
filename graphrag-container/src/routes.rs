@@ -428,7 +428,7 @@ mod tests {
         let config = Arc::new(AppConfig {
             api_prefix: "/api/graphrag/v1".to_string(),
             database: DatabaseConfig {
-                url: db_url,
+                url: crate::db::DatabaseUrlConfig::new(db_url),
                 pool_size: 1,
                 timeout_seconds: 1,
             },
@@ -462,7 +462,7 @@ mod tests {
         let config = Arc::new(AppConfig {
             api_prefix: "/api/graphrag/v1".to_string(),
             database: DatabaseConfig {
-                url: "postgres://mock".to_string(),
+                url: crate::db::DatabaseUrlConfig::new("postgres://mock"),
                 pool_size: 1,
                 timeout_seconds: 1,
             },

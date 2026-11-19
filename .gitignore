@@ -2,3 +2,5 @@
 .tokensave
 target/
 graphrag-container/target/
+.garden/
+

@@ -27,7 +27,7 @@ async fn main() {
     let cli = Cli::parse();
     let ct = CancellationToken::new();
 
-    let config = match AppConfig::load(cli.config.as_deref()) {
+    let config = match AppConfig::load(cli.config.as_deref(), cli.secrets_dir.as_deref()) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Failed to load configuration: {}", e);
