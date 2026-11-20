@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - graphrag.yaml
   - virtualservice.yaml
+  - keycloak-crs.yaml
