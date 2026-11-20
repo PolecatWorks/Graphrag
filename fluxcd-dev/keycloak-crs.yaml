@@ -1,0 +1,38 @@
+apiVersion: v1.edp.epam.com/v1
+kind: KeycloakClient
+metadata:
+  name: graphrag-api
+  namespace: dev
+spec:
+  clientId: graphrag-api
+  name: GraphRAG Backend API
+  description: Bearer-only API client for GraphRAG
+  realmRef:
+    kind: KeycloakRealm
+    name: dev
+  public: false
+  bearerOnly: true
+  clientRolesV2:
+    - name: "graph:read"
+      description: "Query knowledge graphs, execute vector searches, retrieve ontology definitions"
+    - name: "graph:write"
+      description: "Ingest entities, create relations, trigger graph construction pipelines"
+    - name: "graph:admin"
+      description: "Manage schema taxonomies, wipe and re-index graph partitions"
+---
+apiVersion: v1.edp.epam.com/v1
+kind: KeycloakClient
+metadata:
+  name: graphrag-sa
+  namespace: dev
+spec:
+  clientId: graphrag-sa
+  name: GraphRAG Service Account
+  description: Confidential M2M client for GraphRAG background operations
+  realmRef:
+    kind: KeycloakRealm
+    name: dev
+  public: false
+  clientAuthenticatorType: client-secret
+  serviceAccount:
+    enabled: true
