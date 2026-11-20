@@ -5,6 +5,8 @@ metadata:
   name: graphrag
 spec:
   hosts:
+    - aad.k8s
+    - agent-as-data.k8s
     - ai.k8s
   gateways:
     - istio-ingress/k8s-gateway
