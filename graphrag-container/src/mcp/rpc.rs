@@ -244,13 +244,14 @@ mod tests {
         let resp = handle_json_rpc(&state, req).await.unwrap();
         assert_eq!(resp["id"], 4);
         let tools = resp["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 26);
+        assert_eq!(tools.len(), 27);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"hello"));
         assert!(names.contains(&"graphrag_ingest"));
         assert!(names.contains(&"ontology_sync_dataset"));
         assert!(names.contains(&"ontology_steward_edge"));
+        assert!(names.contains(&"ontology_steward_field"));
         assert!(names.contains(&"graphrag_find_join_path"));
         assert!(names.contains(&"graphrag_query"));
         assert!(names.contains(&"document_browse"));

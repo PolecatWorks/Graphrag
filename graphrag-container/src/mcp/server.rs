@@ -620,6 +620,15 @@ impl GraphRagMcpServer {
                     "isError": false
                 }))
             }
+            "ontology_steward_field" => {
+                let req: crate::ontology::StewardFieldRequest = serde_json::from_value(arguments)
+                    .map_err(|e| McpError::InvalidArguments("ontology_steward_field".to_string(), e.to_string()))?;
+                let resp = state.graph_store.steward_decide_field(&state.pool, req).await?;
+                Ok(serde_json::json!({
+                    "content": [{"type": "text", "text": serde_json::to_string_pretty(&resp)?}],
+                    "isError": false
+                }))
+            }
             "graphrag_find_join_path" => {
                 let req: crate::ontology::JoinPathRequest = serde_json::from_value(arguments)
                     .map_err(|e| McpError::InvalidArguments("graphrag_find_join_path".to_string(), e.to_string()))?;
@@ -768,6 +777,11 @@ impl GraphRagMcpServer {
 
     #[tool(description = "Records a human steward decision ('verify' or 'reject' -> FORBIDDEN_JOIN) on a join relationship.")]
     pub fn ontology_steward_edge(&self, _params: Parameters<crate::ontology::StewardEdgeRequest>) -> Result<String, String> {
+        Ok("Dispatched via call_tool".to_string())
+    }
+
+    #[tool(description = "Certifies or updates a field's epistemic statistical_profile (distribution family, recommended test family, known confounders) with human steward attribution.")]
+    pub fn ontology_steward_field(&self, _params: Parameters<crate::ontology::StewardFieldRequest>) -> Result<String, String> {
         Ok("Dispatched via call_tool".to_string())
     }
 

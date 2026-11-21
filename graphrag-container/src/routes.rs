@@ -148,6 +148,7 @@ fn core_routes() -> Router<AppState> {
         .route("/communities/{id}", get(read_community).put(edit_community).delete(delete_community))
         .route("/ontology/sync-dataset", post(sync_dataset_ontology))
         .route("/ontology/steward-edge", post(steward_decide_edge))
+        .route("/ontology/steward-field", post(steward_decide_field))
         .route("/ontology/join-path", post(find_ontology_join_path))
         .route("/mcp", post(handle_http_mcp))
 }
@@ -411,6 +412,19 @@ async fn steward_decide_edge(
     Json(payload): Json<crate::ontology::StewardEdgeRequest>,
 ) -> impl IntoResponse {
     match state.graph_store.steward_decide_join_edge(&state.pool, payload).await {
+        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        Err(err) => {
+            let status = map_graph_error_to_status(&err);
+            (status, Json(ErrorResponse { error: err.to_string() })).into_response()
+        }
+    }
+}
+
+async fn steward_decide_field(
+    State(state): State<AppState>,
+    Json(payload): Json<crate::ontology::StewardFieldRequest>,
+) -> impl IntoResponse {
+    match state.graph_store.steward_decide_field(&state.pool, payload).await {
         Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
         Err(err) => {
             let status = map_graph_error_to_status(&err);

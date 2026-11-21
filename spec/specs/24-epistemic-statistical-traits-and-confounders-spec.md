@@ -1,6 +1,6 @@
 # Spec 24: Epistemic Statistical Traits, Known Confounders & Join-Path Statistical Caveats
 
-- **Status**: `draft`
+- **Status**: `complete`
 - **Derived From**: [autonomous-semantic-ontology-prd.md](../prds/autonomous-semantic-ontology-prd.md)
 - **Dependencies**: [22-ontology-schema-and-dataset-sync-spec.md](./22-ontology-schema-and-dataset-sync-spec.md), [23-ontology-join-path-planner-spec.md](./23-ontology-join-path-planner-spec.md)
 
