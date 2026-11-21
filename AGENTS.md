@@ -100,3 +100,7 @@ Both dev servers have **watch/hot-reload enabled** — do **NOT** manually kill 
 - **No Stringly-Typed Errors (`Result<_, String>`)**: Returning `Result<_, String>` from module functions, validation methods, or initialization routines is prohibited.
 - **Modular Typed Error Enums**: Each domain module (`config`, `db`, `llm_tools`, `hams_tools`, etc.) must define its own typed error enum deriving `thiserror::Error` (e.g., `ConfigError`, `DatabaseError`, `LlmError`, `HamsError`).
 - **Transparent Delegation**: Top-level error types (such as `ConfigError`) must wrap domain errors using `#[error(transparent)]` and `#[from]` so callers can both propagate errors ergonomically with `?` and inspect specific typed variants in tests and error handlers.
+
+## Build & Test Execution
+
+- **Always Use `Makefile` Targets**: When running builds or tests, always use the `Makefile` rather than invoking `cargo`, `npm`, or `ng` directly. Run `make help` to see all available targets.
