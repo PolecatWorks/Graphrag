@@ -90,10 +90,18 @@ When an agent in `agent-as-data` or `Angry-agent` needs to combine multiple busi
 
 ---
 
-### 4. Dataset & Profile Synchronization Endpoint (`POST /ontology/sync-dataset` & MCP `ontology_sync_dataset`)
-Provides a single idempotent bulk upsert endpoint called by `data-engine` after profiling a dataset or probing a join hypothesis:
+### 4. Dataset, Profile & Epistemic Statistical Trait Synchronization (`POST /ontology/sync-dataset` & MCP `ontology_sync_dataset`)
+Provides a single idempotent bulk upsert endpoint called by `data-engine` after profiling a dataset, probing a join hypothesis, or running statistical diagnostics (`stat_describe_and_check`, `stat_hypothesis_test`, `stat_timeseries_analyze`):
 - Upserts the Layer 1 `Dataset` node, all Layer 0 `Field` nodes, `(Dataset) -[HAS_FIELD]-> (Field)` tuples, and any probed `(LeftField) -[JOINABLE_WITH]-> (RightField)` tuples.
-- Preserves existing human-curated descriptions and `verified` statuses unless `epistemic_status = "drifted"` is explicitly signaled by a schema fingerprint change.
+- **Persistent Epistemic Statistical Traits (`properties.statistical_profile`)**: Persists learned statistical properties on `Field` and `Dataset` nodes inside `properties: JSONB`:
+  - `distribution_family` (e.g., `"normal"`, `"log_normal_heavy_tailed"`, `"bimodal"`, `"zero_inflated"`)
+  - `is_heavy_tailed` (`bool`), `skewness` (`f64`), `kurtosis` (`f64`)
+  - `seasonality_period` (nullable string/int, e.g., `"7d"`, `"12m"`)
+  - `recommended_test_family` (e.g., `"non_parametric_or_log_transform"`, `"welch_t"`, `"first_differenced_ts"`)
+  - `known_confounders` (array of field canonical IDs, e.g., `["customers.segment"]`, enabling automatic stratification hints against Simpson's paradox)
+  - `last_diagnosed_run_id` (`ProvenanceRun` UUID from `data-engine`)
+- Follows the exact same epistemic lifecycle (`empirically_tested` $\rightarrow$ `pending_review` $\rightarrow$ `verified` / `drifted`): preserves existing human-curated descriptions, `statistical_profile` caveats, and `verified` statuses unless `epistemic_status = "drifted"` is explicitly signaled by a schema fingerprint or distribution shift.
+- **Surfaced in Join-Path Planning**: `POST /ontology/join-path` (`graphrag_find_join_path`) automatically attaches `statistical_caveats` (any `statistical_profile` and `known_confounders` on participating `Dataset` and `Field` nodes) to the returned subgraph so `AppliedStatistician` agents know distributional constraints and confounders *before* selecting statistical tests.
 - Recomputes 64-d `pgvector` embeddings and refreshes Layer 1+ `CommunitySummary` clusters.
 
 ---
