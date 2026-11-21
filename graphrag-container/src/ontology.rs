@@ -31,6 +31,78 @@ impl Default for OntologyElementMeta {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+pub struct StatisticalProfile {
+    #[serde(default)]
+    pub distribution_family: Option<String>,
+    #[serde(default)]
+    pub is_heavy_tailed: bool,
+    #[serde(default)]
+    pub skewness: Option<f64>,
+    #[serde(default)]
+    pub kurtosis: Option<f64>,
+    #[serde(default)]
+    pub seasonality_period: Option<String>,
+    #[serde(default)]
+    pub recommended_test_family: Option<String>,
+    #[serde(default)]
+    pub known_confounders: Vec<String>,
+    #[serde(default)]
+    pub last_diagnosed_run_id: Option<String>,
+    #[serde(default = "default_empirically_tested")]
+    pub epistemic_status: String,
+    #[serde(default = "default_one")]
+    pub confidence: f64,
+    #[serde(default)]
+    pub verified_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steward_notes: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_verified_profile: Option<Box<StatisticalProfile>>,
+}
+
+fn default_empirically_tested() -> String {
+    "empirically_tested".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+pub struct StatisticalCaveat {
+    pub canonical_id: String,
+    pub distribution_family: Option<String>,
+    pub is_heavy_tailed: bool,
+    pub seasonality_period: Option<String>,
+    pub recommended_test_family: Option<String>,
+    pub known_confounders: Vec<String>,
+    pub epistemic_status: String,
+    pub verified_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+pub struct StewardFieldRequest {
+    pub dataset_name: String,
+    pub field_name: String,
+    /// Action such as "verify" or "reject"
+    pub action: String,
+    pub verified_by: String,
+    #[serde(default)]
+    pub recommended_test_family: Option<String>,
+    #[serde(default)]
+    pub known_confounders: Option<Vec<String>>,
+    #[serde(default)]
+    pub seasonality_period: Option<String>,
+    #[serde(default)]
+    pub steward_notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+pub struct StewardFieldResponse {
+    pub field_node_id: String,
+    pub canonical_id: String,
+    pub epistemic_status: String,
+    pub verified_by: String,
+    pub statistical_profile: StatisticalProfile,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 pub struct OntologyFieldInput {
     pub field_name: String,
     pub arrow_data_type: String,
@@ -44,6 +116,8 @@ pub struct OntologyFieldInput {
     pub inferred_semantic_domain: String,
     #[serde(default = "default_discovered")]
     pub epistemic_status: String,
+    #[serde(default)]
+    pub statistical_profile: Option<StatisticalProfile>,
 }
 
 fn default_discovered() -> String {
@@ -172,6 +246,8 @@ pub struct JoinPathResponse {
     pub all_rules_human_verified: bool,
     pub min_confidence: f64,
     pub requires_steward_review: bool,
+    #[serde(default)]
+    pub statistical_caveats: Vec<StatisticalCaveat>,
 }
 
 pub fn canonical_field_node_id(dataset: &str, field: &str) -> String {
@@ -263,6 +339,51 @@ impl GraphStore {
                     )
                 });
 
+                let existing_meta = guard.node_meta.get(&field_node_id).cloned();
+                let existing_stat_profile: Option<StatisticalProfile> = existing_meta
+                    .as_ref()
+                    .and_then(|m| m.properties.get("statistical_profile"))
+                    .and_then(|v| serde_json::from_value::<StatisticalProfile>(v.clone()).ok());
+
+                let merged_stat_profile: Option<StatisticalProfile> =
+                    match (existing_stat_profile, field.statistical_profile.clone()) {
+                        (Some(existing_prof), Some(incoming_prof)) => {
+                            let is_drift = field.epistemic_status == "drifted"
+                                || incoming_prof.epistemic_status == "drifted";
+                            if existing_prof.epistemic_status == "verified" && !is_drift {
+                                // Preserve human-verified traits; update only observational run ID
+                                let mut preserved = existing_prof;
+                                if incoming_prof.last_diagnosed_run_id.is_some() {
+                                    preserved.last_diagnosed_run_id =
+                                        incoming_prof.last_diagnosed_run_id;
+                                }
+                                Some(preserved)
+                            } else if existing_prof.epistemic_status == "verified" && is_drift {
+                                let mut drifted = incoming_prof;
+                                drifted.epistemic_status = "drifted".to_string();
+                                drifted.previous_verified_profile = Some(Box::new(existing_prof));
+                                Some(drifted)
+                            } else {
+                                Some(incoming_prof)
+                            }
+                        }
+                        (Some(existing_prof), None) => {
+                            if field.epistemic_status == "drifted"
+                                && existing_prof.epistemic_status == "verified"
+                            {
+                                let prev = existing_prof.clone();
+                                let mut drifted = existing_prof;
+                                drifted.epistemic_status = "drifted".to_string();
+                                drifted.previous_verified_profile = Some(Box::new(prev));
+                                Some(drifted)
+                            } else {
+                                Some(existing_prof)
+                            }
+                        }
+                        (None, Some(incoming_prof)) => Some(incoming_prof),
+                        (None, None) => None,
+                    };
+
                 let emb = compute_embedding_64d(&format!("{} Field {}", field_node_id, field_desc));
                 guard.nodes.insert(
                     field_node_id.clone(),
@@ -275,24 +396,47 @@ impl GraphStore {
                         embedding: emb,
                     },
                 );
+
+                let mut field_props = json!({
+                    "dataset": ds_id,
+                    "field_name": field.field_name,
+                    "arrow_data_type": field.arrow_data_type,
+                    "null_ratio": field.null_ratio,
+                    "uniqueness_ratio": field.uniqueness_ratio,
+                    "inferred_semantic_domain": field.inferred_semantic_domain,
+                });
+                if let Some(prof) = &merged_stat_profile {
+                    if let Some(obj) = field_props.as_object_mut() {
+                        obj.insert(
+                            "statistical_profile".to_string(),
+                            serde_json::to_value(prof).unwrap_or(Value::Null),
+                        );
+                    }
+                }
+
+                let final_epistemic = match (&existing_meta, field.epistemic_status.as_str()) {
+                    (Some(em), status) if em.epistemic_status == "verified" && status != "drifted" => {
+                        "verified".to_string()
+                    }
+                    (_, status) => status.to_string(),
+                };
+                let final_verified_by = if final_epistemic == "verified" {
+                    existing_meta.as_ref().and_then(|em| em.verified_by.clone())
+                } else {
+                    None
+                };
+
                 guard.node_meta.insert(
                     field_node_id.clone(),
                     OntologyElementMeta {
-                        epistemic_status: field.epistemic_status.clone(),
+                        epistemic_status: final_epistemic,
                         confidence: if field.epistemic_status == "drifted" {
                             0.30
                         } else {
                             0.95
                         },
-                        verified_by: None,
-                        properties: json!({
-                            "dataset": ds_id,
-                            "field_name": field.field_name,
-                            "arrow_data_type": field.arrow_data_type,
-                            "null_ratio": field.null_ratio,
-                            "uniqueness_ratio": field.uniqueness_ratio,
-                            "inferred_semantic_domain": field.inferred_semantic_domain,
-                        }),
+                        verified_by: final_verified_by,
+                        properties: field_props,
                     },
                 );
 
@@ -827,6 +971,54 @@ impl GraphStore {
             }
         }
 
+        // 6. Aggregate epistemic statistical_caveats from participating datasets and fields
+        let mut statistical_caveats: Vec<StatisticalCaveat> = Vec::new();
+        let mut seen_caveats: HashSet<String> = HashSet::new();
+        let participating_datasets: HashSet<String> = resolved_datasets
+            .iter()
+            .cloned()
+            .chain(join_steps.iter().map(|s| s.left_dataset.clone()))
+            .chain(join_steps.iter().map(|s| s.right_dataset.clone()))
+            .collect();
+
+        for ds in &participating_datasets {
+            for edge in guard
+                .edges
+                .iter()
+                .filter(|e| e.predicate == "HAS_FIELD" && &e.source == ds)
+            {
+                let fid = &edge.target;
+                let Some(meta) = guard.node_meta.get(fid) else {
+                    continue;
+                };
+                let Some(prof_val) = meta.properties.get("statistical_profile") else {
+                    continue;
+                };
+                let Ok(prof) = serde_json::from_value::<StatisticalProfile>(prof_val.clone()) else {
+                    continue;
+                };
+                let field_name = meta
+                    .properties
+                    .get("field_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(fid);
+                let canonical_id = format!("{}.{}", ds, field_name);
+                if seen_caveats.insert(canonical_id.clone()) {
+                    statistical_caveats.push(StatisticalCaveat {
+                        canonical_id,
+                        distribution_family: prof.distribution_family,
+                        is_heavy_tailed: prof.is_heavy_tailed,
+                        seasonality_period: prof.seasonality_period,
+                        recommended_test_family: prof.recommended_test_family,
+                        known_confounders: prof.known_confounders,
+                        epistemic_status: prof.epistemic_status,
+                        verified_by: prof.verified_by,
+                    });
+                }
+            }
+        }
+        statistical_caveats.sort_by(|a, b| a.canonical_id.cmp(&b.canonical_id));
+
         let drifted_vec: Vec<String> = drifted_elements.into_iter().collect();
         let all_rules_human_verified = !join_steps.is_empty()
             && unverified_elements.is_empty()
@@ -847,6 +1039,119 @@ impl GraphStore {
             all_rules_human_verified,
             min_confidence,
             requires_steward_review,
+            statistical_caveats,
+        })
+    }
+
+    pub async fn steward_decide_field(
+        &self,
+        _pool: &PgPool,
+        req: StewardFieldRequest,
+    ) -> Result<StewardFieldResponse, GraphRagError> {
+        let ds_id = normalize_entity_id(&req.dataset_name);
+        if ds_id.is_empty() || req.field_name.trim().is_empty() {
+            return Err(GraphRagError::EmptyNodeId);
+        }
+        let field_node_id = canonical_field_node_id(&ds_id, &req.field_name);
+        let canonical_id = format!("{}.{}", ds_id, req.field_name.trim());
+        let action_norm = req.action.trim().to_ascii_lowercase();
+        let new_status = if action_norm == "reject" {
+            "rejected".to_string()
+        } else {
+            "verified".to_string()
+        };
+
+        let mut guard = self.memory.write().await;
+
+        let mut existing_meta = guard
+            .node_meta
+            .get(&field_node_id)
+            .cloned()
+            .unwrap_or_else(|| OntologyElementMeta {
+                epistemic_status: new_status.clone(),
+                confidence: 1.0,
+                verified_by: Some(req.verified_by.clone()),
+                properties: json!({
+                    "dataset": ds_id,
+                    "field_name": req.field_name.trim(),
+                }),
+            });
+
+        let mut profile = existing_meta
+            .properties
+            .get("statistical_profile")
+            .and_then(|v| serde_json::from_value::<StatisticalProfile>(v.clone()).ok())
+            .unwrap_or(StatisticalProfile {
+                distribution_family: None,
+                is_heavy_tailed: false,
+                skewness: None,
+                kurtosis: None,
+                seasonality_period: None,
+                recommended_test_family: None,
+                known_confounders: Vec::new(),
+                last_diagnosed_run_id: None,
+                epistemic_status: new_status.clone(),
+                confidence: 1.0,
+                verified_by: Some(req.verified_by.clone()),
+                steward_notes: None,
+                previous_verified_profile: None,
+            });
+
+        profile.epistemic_status = new_status.clone();
+        profile.confidence = 1.0;
+        profile.verified_by = Some(req.verified_by.clone());
+        if let Some(rec) = req.recommended_test_family {
+            profile.recommended_test_family = Some(rec);
+        }
+        if let Some(conf) = req.known_confounders {
+            profile.known_confounders = conf;
+        }
+        if let Some(period) = req.seasonality_period {
+            profile.seasonality_period = Some(period);
+        }
+        if let Some(notes) = req.steward_notes {
+            profile.steward_notes = Some(notes);
+        }
+
+        if let Some(obj) = existing_meta.properties.as_object_mut() {
+            obj.insert(
+                "statistical_profile".to_string(),
+                serde_json::to_value(&profile).unwrap_or(Value::Null),
+            );
+        }
+        existing_meta.epistemic_status = new_status.clone();
+        existing_meta.confidence = 1.0;
+        existing_meta.verified_by = Some(req.verified_by.clone());
+
+        guard.node_meta.insert(field_node_id.clone(), existing_meta);
+        if !guard.nodes.contains_key(&field_node_id) {
+            let desc = format!("Field '{}'", canonical_id);
+            let emb = compute_embedding_64d(&format!("{} Field {}", field_node_id, desc));
+            guard.nodes.insert(
+                field_node_id.clone(),
+                KnowledgeObject {
+                    id: field_node_id.clone(),
+                    label: "Field".to_string(),
+                    description: desc,
+                    layer: 0,
+                    document_id: None,
+                    embedding: emb,
+                },
+            );
+            guard.edges.insert(GraphTuple {
+                source: ds_id,
+                predicate: "HAS_FIELD".to_string(),
+                target: field_node_id.clone(),
+                document_id: None,
+            });
+        }
+
+        Ok(StewardFieldResponse {
+            field_node_id,
+            canonical_id,
+            epistemic_status: new_status,
+            verified_by: req.verified_by,
+            statistical_profile: profile,
         })
     }
 }
@@ -886,6 +1191,7 @@ mod tests {
                         uniqueness_ratio: 1.0,
                         inferred_semantic_domain: "identifier".to_string(),
                         epistemic_status: "discovered".to_string(),
+                        statistical_profile: None,
                     }],
                     join_edges: vec![],
                 },
@@ -910,6 +1216,7 @@ mod tests {
                         uniqueness_ratio: 0.5,
                         inferred_semantic_domain: "identifier".to_string(),
                         epistemic_status: "discovered".to_string(),
+                        statistical_profile: None,
                     }],
                     join_edges: vec![OntologyJoinEdgeInput {
                         left_dataset: "sales_orders".to_string(),
@@ -1024,6 +1331,7 @@ mod tests {
                         uniqueness_ratio: 1.0,
                         inferred_semantic_domain: "identifier".to_string(),
                         epistemic_status: "discovered".to_string(),
+                        statistical_profile: None,
                     }],
                     join_edges: vec![OntologyJoinEdgeInput {
                         left_dataset: "billing_subscriptions".to_string(),
@@ -1191,6 +1499,7 @@ mod tests {
                         uniqueness_ratio: 0.2,
                         inferred_semantic_domain: "currency_amount".to_string(),
                         epistemic_status: "drifted".to_string(),
+                        statistical_profile: None,
                     }],
                     join_edges: vec![],
                 },
@@ -1211,5 +1520,348 @@ mod tests {
             .expect("plan trap-04");
         assert!(!plan_drift.drifted_elements.is_empty());
         assert!(plan_drift.requires_steward_review);
+    }
+
+    #[tokio::test]
+    async fn test_sync_dataset_persists_statistical_profile_in_field_properties() {
+        let store = GraphStore::default();
+        let pool = mock_pool();
+
+        store
+            .sync_dataset_ontology(
+                &pool,
+                OntologySyncDatasetRequest {
+                    dataset_name: "sales_orders".to_string(),
+                    description: Some("Sales orders".to_string()),
+                    row_count: 5000,
+                    schema_fingerprint_sha256: Some("sha_stat_1".to_string()),
+                    epistemic_status: "empirically_tested".to_string(),
+                    fields: vec![OntologyFieldInput {
+                        field_name: "order_total_usd".to_string(),
+                        arrow_data_type: "Float64".to_string(),
+                        description: Some("Order value in USD".to_string()),
+                        null_ratio: 0.0,
+                        uniqueness_ratio: 0.8,
+                        inferred_semantic_domain: "currency".to_string(),
+                        epistemic_status: "empirically_tested".to_string(),
+                        statistical_profile: Some(StatisticalProfile {
+                            distribution_family: Some("log_normal_heavy_tailed".to_string()),
+                            is_heavy_tailed: true,
+                            skewness: Some(4.82),
+                            kurtosis: Some(31.4),
+                            seasonality_period: None,
+                            recommended_test_family: Some(
+                                "non_parametric_or_log_transform".to_string(),
+                            ),
+                            known_confounders: vec!["customers.segment".to_string()],
+                            last_diagnosed_run_id: Some("run-001".to_string()),
+                            epistemic_status: "empirically_tested".to_string(),
+                            confidence: 0.93,
+                            verified_by: None,
+                            steward_notes: None,
+                            previous_verified_profile: None,
+                        }),
+                    }],
+                    join_edges: vec![],
+                },
+            )
+            .await
+            .expect("sync statistical_profile");
+
+        let guard = store.memory.read().await;
+        let fid = canonical_field_node_id("sales_orders", "order_total_usd");
+        let meta = guard.node_meta.get(&fid).expect("field meta");
+        let prof: StatisticalProfile = serde_json::from_value(
+            meta.properties
+                .get("statistical_profile")
+                .cloned()
+                .expect("statistical_profile present"),
+        )
+        .expect("parse profile");
+        assert!(prof.is_heavy_tailed);
+        assert_eq!(prof.known_confounders, vec!["customers.segment".to_string()]);
+        assert_eq!(
+            prof.distribution_family.as_deref(),
+            Some("log_normal_heavy_tailed")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_steward_verify_field_protects_statistical_profile_from_unverified_overwrite() {
+        let store = GraphStore::default();
+        let pool = mock_pool();
+
+        store
+            .sync_dataset_ontology(
+                &pool,
+                OntologySyncDatasetRequest {
+                    dataset_name: "sales_orders".to_string(),
+                    description: None,
+                    row_count: 1000,
+                    schema_fingerprint_sha256: None,
+                    epistemic_status: "empirically_tested".to_string(),
+                    fields: vec![OntologyFieldInput {
+                        field_name: "order_total_usd".to_string(),
+                        arrow_data_type: "Float64".to_string(),
+                        description: None,
+                        null_ratio: 0.0,
+                        uniqueness_ratio: 0.8,
+                        inferred_semantic_domain: "currency".to_string(),
+                        epistemic_status: "empirically_tested".to_string(),
+                        statistical_profile: Some(StatisticalProfile {
+                            distribution_family: Some("log_normal_heavy_tailed".to_string()),
+                            is_heavy_tailed: true,
+                            skewness: Some(4.82),
+                            kurtosis: Some(31.4),
+                            seasonality_period: None,
+                            recommended_test_family: Some("welch_t".to_string()),
+                            known_confounders: vec![],
+                            last_diagnosed_run_id: Some("run-001".to_string()),
+                            epistemic_status: "empirically_tested".to_string(),
+                            confidence: 0.88,
+                            verified_by: None,
+                            steward_notes: None,
+                            previous_verified_profile: None,
+                        }),
+                    }],
+                    join_edges: vec![],
+                },
+            )
+            .await
+            .expect("initial sync");
+
+        let steward_resp = store
+            .steward_decide_field(
+                &pool,
+                StewardFieldRequest {
+                    dataset_name: "sales_orders".to_string(),
+                    field_name: "order_total_usd".to_string(),
+                    action: "verify".to_string(),
+                    verified_by: "steward_alice".to_string(),
+                    recommended_test_family: Some("non_parametric_or_log_transform".to_string()),
+                    known_confounders: Some(vec!["customers.segment".to_string()]),
+                    seasonality_period: None,
+                    steward_notes: Some("Whale orders skew mean".to_string()),
+                },
+            )
+            .await
+            .expect("steward verify field");
+        assert_eq!(steward_resp.epistemic_status, "verified");
+        assert_eq!(steward_resp.verified_by, "steward_alice");
+
+        // Re-sync with unverified empirically_tested data attempting to change recommended_test_family
+        store
+            .sync_dataset_ontology(
+                &pool,
+                OntologySyncDatasetRequest {
+                    dataset_name: "sales_orders".to_string(),
+                    description: None,
+                    row_count: 1050,
+                    schema_fingerprint_sha256: None,
+                    epistemic_status: "empirically_tested".to_string(),
+                    fields: vec![OntologyFieldInput {
+                        field_name: "order_total_usd".to_string(),
+                        arrow_data_type: "Float64".to_string(),
+                        description: None,
+                        null_ratio: 0.0,
+                        uniqueness_ratio: 0.8,
+                        inferred_semantic_domain: "currency".to_string(),
+                        epistemic_status: "empirically_tested".to_string(),
+                        statistical_profile: Some(StatisticalProfile {
+                            distribution_family: Some("normal".to_string()),
+                            is_heavy_tailed: false,
+                            skewness: Some(0.1),
+                            kurtosis: Some(0.0),
+                            seasonality_period: None,
+                            recommended_test_family: Some("student_t".to_string()),
+                            known_confounders: vec![],
+                            last_diagnosed_run_id: Some("run-002".to_string()),
+                            epistemic_status: "empirically_tested".to_string(),
+                            confidence: 0.75,
+                            verified_by: None,
+                            steward_notes: None,
+                            previous_verified_profile: None,
+                        }),
+                    }],
+                    join_edges: vec![],
+                },
+            )
+            .await
+            .expect("re-sync");
+
+        let guard = store.memory.read().await;
+        let fid = canonical_field_node_id("sales_orders", "order_total_usd");
+        let prof: StatisticalProfile = serde_json::from_value(
+            guard.node_meta[&fid].properties["statistical_profile"].clone(),
+        )
+        .expect("parse preserved profile");
+        assert_eq!(prof.epistemic_status, "verified");
+        assert_eq!(prof.verified_by.as_deref(), Some("steward_alice"));
+        assert_eq!(
+            prof.recommended_test_family.as_deref(),
+            Some("non_parametric_or_log_transform")
+        );
+        assert_eq!(prof.known_confounders, vec!["customers.segment".to_string()]);
+        assert_eq!(prof.last_diagnosed_run_id.as_deref(), Some("run-002"));
+    }
+
+    #[tokio::test]
+    async fn test_drifted_sync_transitions_verified_statistical_profile_to_drifted() {
+        let store = GraphStore::default();
+        let pool = mock_pool();
+
+        store
+            .steward_decide_field(
+                &pool,
+                StewardFieldRequest {
+                    dataset_name: "daily_revenue".to_string(),
+                    field_name: "net_usd".to_string(),
+                    action: "verify".to_string(),
+                    verified_by: "steward_bob".to_string(),
+                    recommended_test_family: Some("welch_t".to_string()),
+                    known_confounders: None,
+                    seasonality_period: Some("7d".to_string()),
+                    steward_notes: None,
+                },
+            )
+            .await
+            .expect("verify initial");
+
+        store
+            .sync_dataset_ontology(
+                &pool,
+                OntologySyncDatasetRequest {
+                    dataset_name: "daily_revenue".to_string(),
+                    description: None,
+                    row_count: 365,
+                    schema_fingerprint_sha256: None,
+                    epistemic_status: "drifted".to_string(),
+                    fields: vec![OntologyFieldInput {
+                        field_name: "net_usd".to_string(),
+                        arrow_data_type: "Float64".to_string(),
+                        description: None,
+                        null_ratio: 0.0,
+                        uniqueness_ratio: 0.9,
+                        inferred_semantic_domain: "currency".to_string(),
+                        epistemic_status: "drifted".to_string(),
+                        statistical_profile: Some(StatisticalProfile {
+                            distribution_family: Some("bimodal".to_string()),
+                            is_heavy_tailed: true,
+                            skewness: Some(6.5),
+                            kurtosis: Some(40.0),
+                            seasonality_period: Some("7d".to_string()),
+                            recommended_test_family: Some("non_parametric".to_string()),
+                            known_confounders: vec![],
+                            last_diagnosed_run_id: Some("run-drift-1".to_string()),
+                            epistemic_status: "drifted".to_string(),
+                            confidence: 0.40,
+                            verified_by: None,
+                            steward_notes: None,
+                            previous_verified_profile: None,
+                        }),
+                    }],
+                    join_edges: vec![],
+                },
+            )
+            .await
+            .expect("sync drifted");
+
+        let guard = store.memory.read().await;
+        let fid = canonical_field_node_id("daily_revenue", "net_usd");
+        let prof: StatisticalProfile = serde_json::from_value(
+            guard.node_meta[&fid].properties["statistical_profile"].clone(),
+        )
+        .expect("parse drifted profile");
+        assert_eq!(prof.epistemic_status, "drifted");
+        let prev = prof
+            .previous_verified_profile
+            .expect("previous_verified_profile preserved");
+        assert_eq!(prev.verified_by.as_deref(), Some("steward_bob"));
+        assert_eq!(prev.recommended_test_family.as_deref(), Some("welch_t"));
+    }
+
+    #[tokio::test]
+    async fn test_join_path_returns_statistical_caveats_for_participating_fields() {
+        let store = GraphStore::default();
+        let pool = mock_pool();
+
+        store
+            .sync_dataset_ontology(
+                &pool,
+                OntologySyncDatasetRequest {
+                    dataset_name: "orders".to_string(),
+                    description: None,
+                    row_count: 2000,
+                    schema_fingerprint_sha256: None,
+                    epistemic_status: "empirically_tested".to_string(),
+                    fields: vec![OntologyFieldInput {
+                        field_name: "order_total_usd".to_string(),
+                        arrow_data_type: "Float64".to_string(),
+                        description: None,
+                        null_ratio: 0.0,
+                        uniqueness_ratio: 0.9,
+                        inferred_semantic_domain: "currency".to_string(),
+                        epistemic_status: "empirically_tested".to_string(),
+                        statistical_profile: Some(StatisticalProfile {
+                            distribution_family: Some("log_normal_heavy_tailed".to_string()),
+                            is_heavy_tailed: true,
+                            skewness: Some(5.1),
+                            kurtosis: Some(29.0),
+                            seasonality_period: Some("7d".to_string()),
+                            recommended_test_family: Some(
+                                "non_parametric_or_log_transform".to_string(),
+                            ),
+                            known_confounders: vec!["customers.segment".to_string()],
+                            last_diagnosed_run_id: Some("run-jp-1".to_string()),
+                            epistemic_status: "empirically_tested".to_string(),
+                            confidence: 0.92,
+                            verified_by: None,
+                            steward_notes: None,
+                            previous_verified_profile: None,
+                        }),
+                    }],
+                    join_edges: vec![],
+                },
+            )
+            .await
+            .expect("sync orders");
+
+        store
+            .steward_decide_field(
+                &pool,
+                StewardFieldRequest {
+                    dataset_name: "orders".to_string(),
+                    field_name: "order_total_usd".to_string(),
+                    action: "verify".to_string(),
+                    verified_by: "steward_alice".to_string(),
+                    recommended_test_family: None,
+                    known_confounders: None,
+                    seasonality_period: None,
+                    steward_notes: None,
+                },
+            )
+            .await
+            .expect("verify field");
+
+        let plan = store
+            .find_ontology_join_path(
+                &pool,
+                JoinPathRequest {
+                    datasets_or_fields: vec!["orders".to_string()],
+                    min_confidence: 0.5,
+                    include_unverified: true,
+                },
+            )
+            .await
+            .expect("join path");
+
+        assert_eq!(plan.statistical_caveats.len(), 1);
+        let caveat = &plan.statistical_caveats[0];
+        assert_eq!(caveat.canonical_id, "orders.order_total_usd");
+        assert!(caveat.is_heavy_tailed);
+        assert_eq!(caveat.seasonality_period.as_deref(), Some("7d"));
+        assert_eq!(caveat.known_confounders, vec!["customers.segment".to_string()]);
+        assert_eq!(caveat.epistemic_status, "verified");
+        assert_eq!(caveat.verified_by.as_deref(), Some("steward_alice"));
     }
 }
