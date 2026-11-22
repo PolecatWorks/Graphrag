@@ -90,7 +90,7 @@ Both dev servers have **watch/hot-reload enabled** — do **NOT** manually kill 
 
 - **CLI Argument Parsing (`clap` Derive)**: All command-line argument parsing MUST use `clap` with the `derive` feature (`#[derive(clap::Parser)]`, `#[derive(clap::Subcommand)]`, `#[derive(clap::Args)]`) in `src/cli.rs`. Manual `std::env::args` inspection or imperative `clap::Command` builder chains are prohibited.
 - **Zero Direct Runtime Environment Variables**: Never read environment variables directly at runtime in handler, execution, or business logic code (e.g. via `std::env::var`, `std::env::var_os`, `process.env`, or similar).
-- **Centralized Configuration Loader**: ALL configuration MUST be defined in configuration structs, provided via the centralized configuration loader (`AppConfig` / YAML configuration files loaded at startup with environment variable override prefixes like `AAD_BE__`), and validated fail-fast during startup.
+- **Centralized Configuration Loader**: ALL configuration MUST be defined in configuration structs, provided via the centralized configuration loader (`AppConfig` / YAML configuration files loaded at startup with environment variable override prefix `GRAPHRAG_BE__`), and validated fail-fast during startup.
 - **Modular Config Ownership & Delegated Validation**: Each domain module (e.g., `db`, `llm_tools`) must define and own its domain-specific configuration struct (`DatabaseConfig`, `LlmConfig`), its `.validate()` implementation, and the comprehensive unit tests for its validation rules. `AppConfig` (`src/config.rs`) composes these domain configs, delegates validation to each module (`self.database.validate()?`, `self.llm.validate()?`), and tests top-level config loading, overrides, and delegation.
 - **No Hardcoded Defaults in Runtime Code**: Using fallback defaults in runtime code (e.g. `.unwrap_or(...)`, `.unwrap_or_else(...)`, or hardcoded URLs/ports/timeouts) is strictly prohibited. If a configuration value is required for operation, it must be declared in the configuration schema, populated in configuration files, and verified in `AppConfig::validate()`.
 - **Fail-Fast Validation**: Any missing, empty, or malformed configuration must fail immediately at service startup before opening database pools, binding listeners, or starting background workers.
@@ -100,6 +100,14 @@ Both dev servers have **watch/hot-reload enabled** — do **NOT** manually kill 
 - **No Stringly-Typed Errors (`Result<_, String>`)**: Returning `Result<_, String>` from module functions, validation methods, or initialization routines is prohibited.
 - **Modular Typed Error Enums**: Each domain module (`config`, `db`, `llm_tools`, `hams_tools`, etc.) must define its own typed error enum deriving `thiserror::Error` (e.g., `ConfigError`, `DatabaseError`, `LlmError`, `HamsError`).
 - **Transparent Delegation**: Top-level error types (such as `ConfigError`) must wrap domain errors using `#[error(transparent)]` and `#[from]` so callers can both propagate errors ergonomically with `?` and inspect specific typed variants in tests and error handlers.
+
+## Boot-Time Validation & Code Refinement Standards
+
+- **Fail-Fast Boot Sequence**: Validate all CLI arguments, configuration files, secrets, database connectivity, and migrations **before** starting HaMS (`/hams/alive`, `/hams/ready`) or binding the HTTP listener: `Parse CLI -> Load & validate config -> Connect DB & run migrations -> Init domain stores/clients -> Start HaMS & mark ready -> Bind HTTP listener`.
+- **No Config Defaults / No Soft-Fail**: Operational configuration fields must be explicitly defined and validated. Never use `#[serde(default)]` for required settings, and never fall back to a default value when validation or loading fails—treat it as a fatal boot error.
+- **Minimize `Option<T>`**: Never use `Option<T>` for required runtime dependencies or CLI plumbing (e.g., `--config`, `--secrets`, DB pools, auth config). Use `Option<T>` only where absence is a valid domain state (e.g., optional query filters or lookup results).
+- **Propagate Errors with `?` & Never Swallow Errors**: Use `thiserror` + `#[from]` and propagate via `?` instead of nested `match`/`if let` blocks. Translate errors only at system boundaries (`IntoResponse`). Never discard fallible results via `let _ = ...`, `.ok()`, or `.unwrap_or_default()` on DB/deserialization reads.
+- **Parse, Don't Validate & Minimize Ambiguity**: Parse raw inputs into strong types (`Url`, `SocketAddr`, `Uuid`, domain enums) at the boundary; avoid stringly-typed flags, duplicate routes, or `200 OK` error payloads.
 
 ## Build & Test Execution
 
