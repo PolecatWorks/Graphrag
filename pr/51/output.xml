@@ -1,0 +1,1860 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot generator="Robot 7.5 (Python 3.14.10 on linux)" generated="2026-11-22T19:27:37.334742" rpa="false" schemaversion="5">
+<suite id="s1" name="Robot-Tests" source="/tmp/robot-tests">
+<suite id="s1-s1" name="Tests" source="/tmp/robot-tests/tests">
+<suite id="s1-s1-s1" name="01 Health And Foundation" source="/tmp/robot-tests/tests/01_health_and_foundation.robot">
+<test id="s1-s1-s1-t1" name="Verify HaMS Liveness Probe" line="10">
+<kw name="Verify Hams Liveness" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:37.771106" level="DEBUG">Starting new HTTP connection (1): 10.244.7.165:8079</msg>
+<msg time="2026-11-22T19:27:37.775761" level="DEBUG">http://10.244.7.165:8079 "GET /hams/alive HTTP/1.1" 200 29</msg>
+<doc>Verifies that the HaMS /hams/alive endpoint returns HTTP 200.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.765772" elapsed="0.011749"/>
+</kw>
+<doc>Confirms the HaMS /health/live probe returns HTTP 200 OK.</doc>
+<tag>hams</tag>
+<tag>health</tag>
+<status status="PASS" start="2026-11-22T19:27:37.762256" elapsed="0.015833"/>
+</test>
+<test id="s1-s1-s1-t2" name="Verify HaMS Readiness Probe" line="15">
+<kw name="Verify Hams Readiness" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:37.783558" level="DEBUG">Starting new HTTP connection (1): 10.244.7.165:8079</msg>
+<msg time="2026-11-22T19:27:37.787481" level="DEBUG">http://10.244.7.165:8079 "GET /hams/ready HTTP/1.1" 200 29</msg>
+<doc>Verifies that the HaMS /hams/ready endpoint returns HTTP 200.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.781035" elapsed="0.007745"/>
+</kw>
+<doc>Confirms the HaMS /health/ready probe returns HTTP 200 OK after DB and LLM client initialization.</doc>
+<tag>hams</tag>
+<tag>health</tag>
+<status status="PASS" start="2026-11-22T19:27:37.779121" elapsed="0.010179"/>
+</test>
+<test id="s1-s1-s1-t3" name="Verify HaMS Prometheus Metrics Exposure" line="20">
+<kw name="Verify Hams Metrics" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:37.794078" level="DEBUG">Starting new HTTP connection (1): 10.244.7.165:8079</msg>
+<msg time="2026-11-22T19:27:37.798226" level="DEBUG">http://10.244.7.165:8079 "GET /hams/metrics HTTP/1.1" 200 21</msg>
+<msg time="2026-11-22T19:27:37.799552" level="INFO">${metrics} = No metrics registered</msg>
+<var>${metrics}</var>
+<doc>Verifies that the HaMS /hams/metrics endpoint returns non-empty Prometheus metrics.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.791872" elapsed="0.007801"/>
+</kw>
+<kw name="Should Not Be Empty" owner="BuiltIn">
+<msg time="2026-11-22T19:27:37.801931" level="INFO">Length is 21.</msg>
+<arg>${metrics}</arg>
+<doc>Verifies that the given item is not empty.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.800105" elapsed="0.002103"/>
+</kw>
+<doc>Confirms the HaMS /metrics endpoint exposes Prometheus telemetry.</doc>
+<tag>hams</tag>
+<tag>metrics</tag>
+<status status="PASS" start="2026-11-22T19:27:37.790243" elapsed="0.012450"/>
+</test>
+<test id="s1-s1-s1-t4" name="Verify Axum Hello Endpoint" line="26">
+<kw name="Get Hello Endpoint" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:37.807656" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:37.816251" level="DEBUG">http://graphrag:80 "GET /hello HTTP/1.1" 200 13</msg>
+<msg time="2026-11-22T19:27:37.817660" level="INFO">${body} = Hello, World!</msg>
+<var>${body}</var>
+<doc>Calls GET /hello on the running Graphrag Axum service.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.805362" elapsed="0.012423"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:37.819582" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${body}</arg>
+<arg>Hello, World!</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.818262" elapsed="0.001590"/>
+</kw>
+<doc>Confirms the primary Axum HTTP router responds on GET /hello.</doc>
+<tag>api</tag>
+<tag>foundation</tag>
+<status status="PASS" start="2026-11-22T19:27:37.803674" elapsed="0.016625"/>
+</test>
+<test id="s1-s1-s1-t5" name="Verify Axum Configured Prefix Hello Endpoint" line="32">
+<kw name="Get Prefix Endpoint" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:37.825569" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:37.831623" level="DEBUG">http://graphrag:80 "GET /api/graphrag/v1/hello HTTP/1.1" 200 13</msg>
+<msg time="2026-11-22T19:27:37.833054" level="INFO">${response} = Hello, World!</msg>
+<var>${response}</var>
+<arg>/api/graphrag/v1/hello</arg>
+<arg>expected_status=200</arg>
+<doc>Calls a specific path on the running Graphrag Axum service and asserts the status.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.823113" elapsed="0.010072"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:37.834651" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${response}</arg>
+<arg>Hello, World!</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.833663" elapsed="0.001199"/>
+</kw>
+<doc>Confirms the primary Axum HTTP router responds on GET /api/graphrag/v1/hello.</doc>
+<tag>api</tag>
+<tag>positive</tag>
+<tag>prefix</tag>
+<status status="PASS" start="2026-11-22T19:27:37.821341" elapsed="0.013870"/>
+</test>
+<test id="s1-s1-s1-t6" name="Verify Axum Negative: Unknown Prefix Returns 404" line="38">
+<kw name="Get Prefix Endpoint" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:37.840336" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:37.846127" level="DEBUG">http://graphrag:80 "GET /api/unknown-service/v1/hello HTTP/1.1" 404 0</msg>
+<msg time="2026-11-22T19:27:37.847416" level="INFO">${response} = </msg>
+<var>${response}</var>
+<arg>/api/unknown-service/v1/hello</arg>
+<arg>expected_status=404</arg>
+<doc>Calls a specific path on the running Graphrag Axum service and asserts the status.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.837942" elapsed="0.009601"/>
+</kw>
+<doc>Confirms that requests to non-existent API prefixes return HTTP 404.</doc>
+<tag>api</tag>
+<tag>negative</tag>
+<tag>prefix</tag>
+<status status="PASS" start="2026-11-22T19:27:37.836080" elapsed="0.011844"/>
+</test>
+<test id="s1-s1-s1-t7" name="Verify Axum Negative: Incomplete Prefix Path Returns 404" line="43">
+<kw name="Get Prefix Endpoint" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:37.852891" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:37.860206" level="DEBUG">http://graphrag:80 "GET /api/graphrag/hello HTTP/1.1" 404 0</msg>
+<msg time="2026-11-22T19:27:37.861578" level="INFO">${response} = </msg>
+<var>${response}</var>
+<arg>/api/graphrag/hello</arg>
+<arg>expected_status=404</arg>
+<doc>Calls a specific path on the running Graphrag Axum service and asserts the status.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.850522" elapsed="0.011194"/>
+</kw>
+<doc>Confirms that requests with missing path segments return HTTP 404.</doc>
+<tag>api</tag>
+<tag>negative</tag>
+<tag>prefix</tag>
+<status status="PASS" start="2026-11-22T19:27:37.848814" elapsed="0.013375"/>
+</test>
+<doc>Verifies HaMS sidecar health/metrics probes and foundational Axum endpoints on a running Graphrag instance.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.514492" elapsed="0.349205"/>
+</suite>
+<suite id="s1-s1-s2" name="02 Graph Rag Baseline" source="/tmp/robot-tests/tests/02_graph_rag_baseline.robot">
+<kw name="Load Baseline Markdown Directory" owner="GraphragApiLibrary" type="SETUP">
+<msg time="2026-11-22T19:27:37.892656" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:38.018654" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-11-22T19:27:38.022861" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:38.189820" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-11-22T19:27:38.195784" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:38.354922" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 96</msg>
+<msg time="2026-11-22T19:27:38.361727" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:38.574128" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 100</msg>
+<msg time="2026-11-22T19:27:38.581368" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:38.800824" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<arg>${BASELINE_DATA_DIR}</arg>
+<doc>Loads all .md files in the given directory (sorted alphabetically) into Graphrag.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.889274" elapsed="0.913943"/>
+</kw>
+<test id="s1-s1-s2-t1" name="Single-Hop Query: Apollo 11 Command Module Pilot" line="16">
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-22T19:27:38.808866" level="INFO">${question} = Who flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon?</msg>
+<var>${question}</var>
+<arg>Who flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon?</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.806727" elapsed="0.002359"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-22T19:27:38.812120" level="INFO">${reference} = Michael Collins flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon.</msg>
+<var>${reference}</var>
+<arg>Michael Collins flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon.</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.809982" elapsed="0.002365"/>
+</kw>
+<kw name="Ask Graphrag Question" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:38.816816" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:38.851194" level="DEBUG">http://graphrag:80 "POST /query HTTP/1.1" 200 25670</msg>
+<msg time="2026-11-22T19:27:38.855187" level="INFO">${result} = {'answer': "[Project Apollo] Kennedy's goal was accomplished on the Apollo 11 mission when astronauts Neil Armstrong and Buzz Aldrin landed their Apollo Lunar Module (LM) on July 20, 1969, and walked ...</msg>
+<var>${result}</var>
+<arg>${question}</arg>
+<doc>Sends a natural-language question to POST /query and returns {'answer': ..., 'contexts': [...]}.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.813108" elapsed="0.042321"/>
+</kw>
+<kw name="Evaluate Rag Response With Ragas" owner="RagasEvalLibrary">
+<msg time="2026-11-22T19:27:38.877626" level="INFO">Ragas library fallback scorer engaged (No module named 'langchain_openai')
+Ragas Evaluation Scores for question='Who flew the Apollo 11 command module Columbia in lunar orbit while Neil Armstrong and Buzz Aldrin landed on the Moon?': {'faithfulness': 1.0, 'factual_correctness': 1.0, 'response_relevancy': 1.0, 'context_recall': 1.0}</msg>
+<arg>question=${question}</arg>
+<arg>actual_answer=${result}[answer]</arg>
+<arg>retrieved_contexts=${result}[contexts]</arg>
+<arg>reference_answer=${reference}</arg>
+<arg>min_faithfulness=0.70</arg>
+<arg>min_factual_correctness=0.70</arg>
+<doc>Grades an AI response from Graphrag using Ragas metrics and asserts minimum thresholds.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.856072" elapsed="0.022059"/>
+</kw>
+<doc>Verifies Graphrag accurately answers who piloted the Command Module Columbia and remained in lunar orbit.</doc>
+<tag>graphrag</tag>
+<tag>ragas</tag>
+<tag>single-hop</tag>
+<status status="PASS" start="2026-11-22T19:27:38.803765" elapsed="0.075171"/>
+</test>
+<test id="s1-s1-s2-t2" name="Multi-Hop Query: Presidential Goal Fulfilled By Apollo 11 Crew" line="30">
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-22T19:27:38.887879" level="INFO">${question} = Which US President proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and what university did the Lunar Module Eagle pilot earn his doctor...</msg>
+<var>${question}</var>
+<arg>Which US President proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and what university did the Lunar Module Eagle pilot earn his doctorate from?</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.884797" elapsed="0.003487"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-22T19:27:38.891468" level="INFO">${reference} = President John F. Kennedy proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and the Lunar Module Eagle pilot Buzz Aldrin earned his Docto...</msg>
+<var>${reference}</var>
+<arg>President John F. Kennedy proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and the Lunar Module Eagle pilot Buzz Aldrin earned his Doctor of Science doctorate from the Massachusetts Institute of Technology (MIT).</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.889127" elapsed="0.002705"/>
+</kw>
+<kw name="Ask Graphrag Question" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:38.896911" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:38.914474" level="DEBUG">http://graphrag:80 "POST /query HTTP/1.1" 200 25498</msg>
+<msg time="2026-11-22T19:27:38.918192" level="INFO">${result} = {'answer': '[Project Apollo] Kennedy\'s goal was accomplished on the Apollo 11 mission when astronauts Neil Armstrong and Buzz Aldrin landed their Apollo Lunar Module (LM) on July 20, 1969, and walked...</msg>
+<var>${result}</var>
+<arg>${question}</arg>
+<doc>Sends a natural-language question to POST /query and returns {'answer': ..., 'contexts': [...]}.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.893373" elapsed="0.025139"/>
+</kw>
+<kw name="Evaluate Rag Response With Ragas" owner="RagasEvalLibrary">
+<msg time="2026-11-22T19:27:38.939687" level="INFO">Ragas library fallback scorer engaged (No module named 'langchain_openai')
+Ragas Evaluation Scores for question='Which US President proposed the national goal in May 1961 that was accomplished on July 20, 1969 by Neil Armstrong and Buzz Aldrin, and what university did the Lunar Module Eagle pilot earn his doctorate from?': {'faithfulness': 1.0, 'factual_correctness': 1.0, 'response_relevancy': 1.0, 'context_recall': 1.0}</msg>
+<arg>question=${question}</arg>
+<arg>actual_answer=${result}[answer]</arg>
+<arg>retrieved_contexts=${result}[contexts]</arg>
+<arg>reference_answer=${reference}</arg>
+<arg>min_faithfulness=0.70</arg>
+<arg>min_factual_correctness=0.70</arg>
+<doc>Grades an AI response from Graphrag using Ragas metrics and asserts minimum thresholds.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.919113" elapsed="0.021074"/>
+</kw>
+<doc>Traverses across Project Apollo, JFK, and the Apollo 11 crew to verify multi-hop synthesis.</doc>
+<tag>graphrag</tag>
+<tag>multi-hop</tag>
+<tag>ragas</tag>
+<status status="PASS" start="2026-11-22T19:27:38.880104" elapsed="0.060823"/>
+</test>
+<test id="s1-s1-s2-t3" name="Multi-Hop Query: West Point Graduates On Apollo 11" line="44">
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-22T19:27:38.949056" level="INFO">${question} = Which Apollo 11 astronauts graduated from the United States Military Academy at West Point, and in what years did they graduate?</msg>
+<var>${question}</var>
+<arg>Which Apollo 11 astronauts graduated from the United States Military Academy at West Point, and in what years did they graduate?</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.946681" elapsed="0.002559"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-22T19:27:38.951775" level="INFO">${reference} = Buzz Aldrin and Michael Collins both graduated from the United States Military Academy at West Point; Buzz Aldrin graduated in 1951 and Michael Collins graduated in 1952.</msg>
+<var>${reference}</var>
+<arg>Buzz Aldrin and Michael Collins both graduated from the United States Military Academy at West Point; Buzz Aldrin graduated in 1951 and Michael Collins graduated in 1952.</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.950296" elapsed="0.001745"/>
+</kw>
+<kw name="Ask Graphrag Question" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:38.955125" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:38.969862" level="DEBUG">http://graphrag:80 "POST /query HTTP/1.1" 200 25499</msg>
+<msg time="2026-11-22T19:27:38.973644" level="INFO">${result} = {'answer': "After graduating from the United States Military Academy at West Point in 1951, he was commissioned into the United States Air Force and flew 66 combat missions in the Korean War. [Project...</msg>
+<var>${result}</var>
+<arg>${question}</arg>
+<doc>Sends a natural-language question to POST /query and returns {'answer': ..., 'contexts': [...]}.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.952554" elapsed="0.021438"/>
+</kw>
+<kw name="Evaluate Rag Response With Ragas" owner="RagasEvalLibrary">
+<msg time="2026-11-22T19:27:38.993691" level="INFO">Ragas library fallback scorer engaged (No module named 'langchain_openai')
+Ragas Evaluation Scores for question='Which Apollo 11 astronauts graduated from the United States Military Academy at West Point, and in what years did they graduate?': {'faithfulness': 1.0, 'factual_correctness': 1.0, 'response_relevancy': 1.0, 'context_recall': 1.0}</msg>
+<arg>question=${question}</arg>
+<arg>actual_answer=${result}[answer]</arg>
+<arg>retrieved_contexts=${result}[contexts]</arg>
+<arg>reference_answer=${reference}</arg>
+<arg>min_faithfulness=0.70</arg>
+<arg>min_factual_correctness=0.70</arg>
+<doc>Grades an AI response from Graphrag using Ragas metrics and asserts minimum thresholds.</doc>
+<status status="PASS" start="2026-11-22T19:27:38.974710" elapsed="0.019305"/>
+</kw>
+<doc>Synthesizes biographical facts across Buzz Aldrin and Michael Collins markdown documents.</doc>
+<tag>graphrag</tag>
+<tag>multi-hop</tag>
+<tag>ragas</tag>
+<status status="PASS" start="2026-11-22T19:27:38.942168" elapsed="0.052442"/>
+</test>
+<kw name="Cleanup Ingested Documents" owner="GraphragApiLibrary" type="TEARDOWN">
+<msg time="2026-11-22T19:27:38.999123" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:39.031533" level="DEBUG">http://graphrag:80 "DELETE /documents/05_john_f_kennedy.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:39.034918" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:39.051886" level="DEBUG">http://graphrag:80 "DELETE /documents/04_michael_collins.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:39.056136" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:39.076105" level="DEBUG">http://graphrag:80 "DELETE /documents/03_buzz_aldrin.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:39.080363" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:39.099162" level="DEBUG">http://graphrag:80 "DELETE /documents/02_neil_armstrong.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:39.105826" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:39.124090" level="DEBUG">http://graphrag:80 "DELETE /documents/01_apollo_program.md HTTP/1.1" 204 0</msg>
+<doc>Deletes all documents ingested during the suite in [Teardown].</doc>
+<status status="PASS" start="2026-11-22T19:27:38.996636" elapsed="0.129530"/>
+</kw>
+<doc>Loads the baseline Apollo 11 markdown dataset into the running Graphrag API, executes single-hop and multi-hop queries, and evaluates AI responses using Ragas.</doc>
+<status status="PASS" start="2026-11-22T19:27:37.866234" elapsed="1.260240"/>
+</suite>
+<suite id="s1-s1-s3" name="03 Graph Rag Bread Api" source="/tmp/robot-tests/tests/03_graph_rag_bread_api.robot">
+<kw name="Load Baseline Markdown Directory" owner="GraphragApiLibrary" type="SETUP">
+<msg time="2026-11-22T19:27:39.152348" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:39.302413" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-11-22T19:27:39.308875" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:39.404329" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-11-22T19:27:39.411088" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:39.590758" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 96</msg>
+<msg time="2026-11-22T19:27:39.597660" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:39.827375" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 100</msg>
+<msg time="2026-11-22T19:27:39.836130" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.011723" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<arg>${BASELINE_DATA_DIR}</arg>
+<doc>Loads all .md files in the given directory (sorted alphabetically) into Graphrag.</doc>
+<status status="PASS" start="2026-11-22T19:27:39.146865" elapsed="0.867375"/>
+</kw>
+<test id="s1-s1-s3-t1" name="BREAD Operations: Documents Resource" line="16">
+<kw name="Browse Documents" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.024370" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.041188" level="DEBUG">http://graphrag:80 "GET /documents?limit=10&amp;offset=0 HTTP/1.1" 200 5573</msg>
+<msg time="2026-11-22T19:27:40.045337" level="INFO">${docs} = {'items': [{'id': '01_apollo_program.md', 'filename': '01_apollo_program.md', 'content': '# Project Apollo\n\nThe Apollo program, also known as Project Apollo, was the third United States human spacef...</msg>
+<var>${docs}</var>
+<arg>limit=10</arg>
+<doc>Calls GET /documents.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.018554" elapsed="0.027150"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>${docs}[total] &gt;= 5</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.046882" elapsed="0.003596"/>
+</kw>
+<kw name="Read Document" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.055904" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.073731" level="DEBUG">http://graphrag:80 "GET /documents/04_michael_collins.md HTTP/1.1" 200 2439</msg>
+<msg time="2026-11-22T19:27:40.077068" level="INFO">${doc_resp} = {'document': {'id': '04_michael_collins.md', 'filename': '04_michael_collins.md', 'content': '# Michael Collins (astronaut)\n\nMichael Collins (October 31, 1930 – April 28, 2021) was an American astro...</msg>
+<var>${doc_resp}</var>
+<arg>04_michael_collins.md</arg>
+<doc>Calls GET /documents/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.051389" elapsed="0.026029"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:40.080748" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${doc_resp}[document][id]</arg>
+<arg>04_michael_collins.md</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.078432" elapsed="0.002808"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${doc_resp}[document][content]</arg>
+<arg>Michael Collins</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.082442" elapsed="0.003280"/>
+</kw>
+<kw name="Add Document" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.092145" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.313892" level="DEBUG">http://graphrag:80 "POST /documents HTTP/1.1" 201 99</msg>
+<msg time="2026-11-22T19:27:40.317148" level="INFO">${add_resp} = {'document_id': 'temp_apollo_bread.md', 'chunks_processed': 1, 'nodes_extracted': 1, 'edges_extracted': 0}</msg>
+<var>${add_resp}</var>
+<arg>filename=temp_apollo_bread.md</arg>
+<arg>content=# Apollo Bread Test\n\nApollo Bread Test verifies document BREAD.</arg>
+<doc>Calls POST /documents.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.086869" elapsed="0.230610"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:40.321166" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${add_resp}[document_id]</arg>
+<arg>temp_apollo_bread.md</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.318588" elapsed="0.003143"/>
+</kw>
+<kw name="Edit Document" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.328026" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.594121" level="DEBUG">http://graphrag:80 "PUT /documents/temp_apollo_bread.md HTTP/1.1" 200 0</msg>
+<arg>doc_id=temp_apollo_bread.md</arg>
+<arg>content=# Apollo Bread Test Updated\n\nApollo Bread Test updated content.</arg>
+<doc>Calls PUT /documents/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.322722" elapsed="0.273706"/>
+</kw>
+<kw name="Read Document" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.606345" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.631285" level="DEBUG">http://graphrag:80 "GET /documents/temp_apollo_bread.md HTTP/1.1" 200 288</msg>
+<msg time="2026-11-22T19:27:40.634154" level="INFO">${read_updated} = {'document': {'id': 'temp_apollo_bread.md', 'filename': 'temp_apollo_bread.md', 'content': '# Apollo Bread Test Updated\n\nApollo Bread Test updated content.', 'updated_at': '2026-11-22 19:27:40.05649...</msg>
+<var>${read_updated}</var>
+<arg>temp_apollo_bread.md</arg>
+<doc>Calls GET /documents/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.597853" elapsed="0.036569"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${read_updated}[document][content]</arg>
+<arg>updated content</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.635511" elapsed="0.002854"/>
+</kw>
+<kw name="Delete Document" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.644064" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.662072" level="DEBUG">http://graphrag:80 "DELETE /documents/temp_apollo_bread.md HTTP/1.1" 204 0</msg>
+<arg>temp_apollo_bread.md</arg>
+<doc>Calls DELETE /documents/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.639409" elapsed="0.024696"/>
+</kw>
+<kw name="Read Document" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.669980" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.684063" level="DEBUG">http://graphrag:80 "GET /documents/temp_apollo_bread.md HTTP/1.1" 404 52</msg>
+<arg>temp_apollo_bread.md</arg>
+<arg>expected_status=404</arg>
+<doc>Calls GET /documents/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.665259" elapsed="0.021394"/>
+</kw>
+<doc>Exercises Browse, Read, Edit, Add, Delete across /documents endpoints.</doc>
+<tag>bread</tag>
+<tag>documents</tag>
+<tag>graphrag</tag>
+<status status="PASS" start="2026-11-22T19:27:40.014888" elapsed="0.672642"/>
+</test>
+<test id="s1-s1-s3-t2" name="BREAD Operations: Nodes Resource" line="41">
+<kw name="Browse Nodes" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.697406" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.714323" level="DEBUG">http://graphrag:80 "GET /nodes?limit=10&amp;offset=0 HTTP/1.1" 200 24173</msg>
+<msg time="2026-11-22T19:27:40.720759" level="INFO">${nodes} = {'items': [{'id': 'apollo_11', 'label': 'Mission', 'description': "[Project Apollo] Kennedy's goal was accomplished on the Apollo 11 mission when astronauts Neil Armstrong and Buzz Aldrin landed their...</msg>
+<var>${nodes}</var>
+<arg>limit=10</arg>
+<doc>Calls GET /nodes.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.693340" elapsed="0.027770"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>${nodes}[total] &gt;= 1</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.722213" elapsed="0.003721"/>
+</kw>
+<kw name="Read Node" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.730859" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.754668" level="DEBUG">http://graphrag:80 "GET /nodes/michael_collins HTTP/1.1" 200 3883</msg>
+<msg time="2026-11-22T19:27:40.758325" level="INFO">${node} = {'incoming_edges': [{'predicate': 'MENTIONS', 'source_id': 'neil_armstrong'}, {'predicate': 'SUMMARIZES', 'source_id': 'community_1'}, {'predicate': 'MENTIONS', 'source_id': 'project_apollo'}], 'node'...</msg>
+<var>${node}</var>
+<arg>michael_collins</arg>
+<doc>Calls GET /nodes/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.726935" elapsed="0.031627"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:40.761357" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${node}[node][id]</arg>
+<arg>michael_collins</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.759264" elapsed="0.002488"/>
+</kw>
+<kw name="Add Node" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.766068" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.778457" level="DEBUG">http://graphrag:80 "POST /nodes HTTP/1.1" 201 0</msg>
+<arg>node_id=gene_kranz</arg>
+<arg>label=FlightDirector</arg>
+<arg>description=Gene Kranz was the Apollo 11 lead flight director in Mission Control.</arg>
+<doc>Calls POST /nodes.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.762378" elapsed="0.017691"/>
+</kw>
+<kw name="Read Node" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.784288" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.807989" level="DEBUG">http://graphrag:80 "GET /nodes/gene_kranz HTTP/1.1" 200 774</msg>
+<msg time="2026-11-22T19:27:40.811293" level="INFO">${new_node} = {'incoming_edges': [], 'node': {'description': 'Gene Kranz was the Apollo 11 lead flight director in Mission Control.', 'document_id': None, 'embedding': [0.0, -0.21442300081253052, 0.0, -0.2144230008...</msg>
+<var>${new_node}</var>
+<arg>gene_kranz</arg>
+<doc>Calls GET /nodes/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.780895" elapsed="0.030698"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:40.814862" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${new_node}[node][label]</arg>
+<arg>FlightDirector</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.812566" elapsed="0.002714"/>
+</kw>
+<kw name="Edit Node" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.820533" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.844373" level="DEBUG">http://graphrag:80 "PUT /nodes/gene_kranz HTTP/1.1" 200 0</msg>
+<arg>node_id=gene_kranz</arg>
+<arg>description=Gene Kranz served as NASA Flight Director for Gemini and Apollo missions.</arg>
+<doc>Calls PUT /nodes/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.816001" elapsed="0.030051"/>
+</kw>
+<kw name="Read Node" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.850833" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.862085" level="DEBUG">http://graphrag:80 "GET /nodes/gene_kranz HTTP/1.1" 200 797</msg>
+<msg time="2026-11-22T19:27:40.864541" level="INFO">${edited_node} = {'incoming_edges': [], 'node': {'description': 'Gene Kranz served as NASA Flight Director for Gemini and Apollo missions.', 'document_id': None, 'embedding': [0.0, -0.2156659960746765, 0.0, -0.2156659...</msg>
+<var>${edited_node}</var>
+<arg>gene_kranz</arg>
+<doc>Calls GET /nodes/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.846769" elapsed="0.018267"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${edited_node}[node][description]</arg>
+<arg>Gemini and Apollo missions</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.865848" elapsed="0.002158"/>
+</kw>
+<kw name="Delete Node" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.872992" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.890076" level="DEBUG">http://graphrag:80 "DELETE /nodes/gene_kranz HTTP/1.1" 204 0</msg>
+<arg>gene_kranz</arg>
+<doc>Calls DELETE /nodes/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.868933" elapsed="0.022903"/>
+</kw>
+<kw name="Read Node" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.896328" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.908939" level="DEBUG">http://graphrag:80 "GET /nodes/gene_kranz HTTP/1.1" 404 38</msg>
+<arg>gene_kranz</arg>
+<arg>expected_status=404</arg>
+<doc>Calls GET /nodes/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.892554" elapsed="0.018064"/>
+</kw>
+<doc>Exercises Browse, Read, Edit, Add, Delete across /nodes endpoints.</doc>
+<tag>bread</tag>
+<tag>graphrag</tag>
+<tag>nodes</tag>
+<status status="PASS" start="2026-11-22T19:27:40.690227" elapsed="0.220950"/>
+</test>
+<test id="s1-s1-s3-t3" name="BREAD Operations: Edges Resource" line="66">
+<kw name="Browse Edges" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.917804" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.931137" level="DEBUG">http://graphrag:80 "GET /edges?limit=10&amp;offset=0 HTTP/1.1" 200 1110</msg>
+<msg time="2026-11-22T19:27:40.932935" level="INFO">${edges} = {'items': [{'source': 'buzz_aldrin', 'predicate': 'MENTIONS', 'target': 'apollo_11', 'document_id': '03_buzz_aldrin.md'}, {'source': 'buzz_aldrin', 'predicate': 'MENTIONS', 'target': 'lunar_module_eag...</msg>
+<var>${edges}</var>
+<arg>limit=10</arg>
+<doc>Calls GET /edges.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.914064" elapsed="0.019060"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>${edges}[total] &gt;= 1</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.933728" elapsed="0.001650"/>
+</kw>
+<kw name="Add Edge" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.938598" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.955139" level="DEBUG">http://graphrag:80 "POST /edges HTTP/1.1" 201 0</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=PILOTED_MISSION</arg>
+<arg>target=apollo_11</arg>
+<doc>Calls POST /edges.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.935834" elapsed="0.020621"/>
+</kw>
+<kw name="Read Edge" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.960197" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.974766" level="DEBUG">http://graphrag:80 "GET /edges/michael_collins/PILOTED_MISSION/apollo_11 HTTP/1.1" 200 217</msg>
+<msg time="2026-11-22T19:27:40.976319" level="INFO">${edge} = {'edge': {'document_id': None, 'predicate': 'PILOTED_MISSION', 'source': 'michael_collins', 'target': 'apollo_11'}, 'source_node': {'id': 'michael_collins', 'label': 'Astronaut'}, 'target_node': {'id'...</msg>
+<var>${edge}</var>
+<arg>source=michael_collins</arg>
+<arg>predicate=PILOTED_MISSION</arg>
+<arg>target=apollo_11</arg>
+<doc>Calls GET /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.957175" elapsed="0.019305"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:40.978314" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${edge}[edge][predicate]</arg>
+<arg>PILOTED_MISSION</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.977135" elapsed="0.001418"/>
+</kw>
+<kw name="Edit Edge" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:40.981623" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:40.999138" level="DEBUG">http://graphrag:80 "PUT /edges/michael_collins/PILOTED_MISSION/apollo_11 HTTP/1.1" 200 0</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=PILOTED_MISSION</arg>
+<arg>target=apollo_11</arg>
+<arg>new_predicate=COMMAND_MODULE_PILOT_FOR</arg>
+<doc>Calls PUT /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-11-22T19:27:40.978981" elapsed="0.021280"/>
+</kw>
+<kw name="Read Edge" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.004105" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.012889" level="DEBUG">http://graphrag:80 "GET /edges/michael_collins/PILOTED_MISSION/apollo_11 HTTP/1.1" 404 71</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=PILOTED_MISSION</arg>
+<arg>target=apollo_11</arg>
+<arg>expected_status=404</arg>
+<doc>Calls GET /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.000880" elapsed="0.013259"/>
+</kw>
+<kw name="Read Edge" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.017242" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.031675" level="DEBUG">http://graphrag:80 "GET /edges/michael_collins/COMMAND_MODULE_PILOT_FOR/apollo_11 HTTP/1.1" 200 226</msg>
+<msg time="2026-11-22T19:27:41.033445" level="INFO">${updated_edge} = {'edge': {'document_id': None, 'predicate': 'COMMAND_MODULE_PILOT_FOR', 'source': 'michael_collins', 'target': 'apollo_11'}, 'source_node': {'id': 'michael_collins', 'label': 'Astronaut'}, 'target_nod...</msg>
+<var>${updated_edge}</var>
+<arg>source=michael_collins</arg>
+<arg>predicate=COMMAND_MODULE_PILOT_FOR</arg>
+<arg>target=apollo_11</arg>
+<doc>Calls GET /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.014668" elapsed="0.018939"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:41.035872" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${updated_edge}[edge][predicate]</arg>
+<arg>COMMAND_MODULE_PILOT_FOR</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.034282" elapsed="0.001898"/>
+</kw>
+<kw name="Delete Edge" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.040379" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.055111" level="DEBUG">http://graphrag:80 "DELETE /edges/michael_collins/COMMAND_MODULE_PILOT_FOR/apollo_11 HTTP/1.1" 204 0</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=COMMAND_MODULE_PILOT_FOR</arg>
+<arg>target=apollo_11</arg>
+<doc>Calls DELETE /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.036780" elapsed="0.019545"/>
+</kw>
+<kw name="Read Edge" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.060713" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.070261" level="DEBUG">http://graphrag:80 "GET /edges/michael_collins/COMMAND_MODULE_PILOT_FOR/apollo_11 HTTP/1.1" 404 80</msg>
+<arg>source=michael_collins</arg>
+<arg>predicate=COMMAND_MODULE_PILOT_FOR</arg>
+<arg>target=apollo_11</arg>
+<arg>expected_status=404</arg>
+<doc>Calls GET /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.057109" elapsed="0.015151"/>
+</kw>
+<doc>Exercises Browse, Read, Edit, Add, Delete across /edges endpoints.</doc>
+<tag>bread</tag>
+<tag>edges</tag>
+<tag>graphrag</tag>
+<status status="PASS" start="2026-11-22T19:27:40.912134" elapsed="0.161160"/>
+</test>
+<test id="s1-s1-s3-t4" name="BREAD Operations: Communities Resource" line="88">
+<kw name="Rebuild Communities" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.080755" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.137441" level="DEBUG">http://graphrag:80 "POST /communities/rebuild HTTP/1.1" 200 12312</msg>
+<msg time="2026-11-22T19:27:41.141837" level="INFO">${rebuilt} = [{'id': 'community_1', 'label': 'CommunitySummary', 'description': 'Community community_1 summary covering [apollo_11, buzz_aldrin, command_module_columbia, john_f_kennedy, lunar_module_eagle, massach...</msg>
+<var>${rebuilt}</var>
+<doc>Calls POST /communities/rebuild.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.077708" elapsed="0.064442"/>
+</kw>
+<kw name="Should Not Be Empty" owner="BuiltIn">
+<msg time="2026-11-22T19:27:41.145073" level="INFO">Length is 1.</msg>
+<arg>${rebuilt}</arg>
+<doc>Verifies that the given item is not empty.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.143007" elapsed="0.002411"/>
+</kw>
+<kw name="Browse Communities" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.150305" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.166661" level="DEBUG">http://graphrag:80 "GET /communities?limit=10&amp;offset=0 HTTP/1.1" 200 11570</msg>
+<msg time="2026-11-22T19:27:41.170870" level="INFO">${comms} = {'items': [{'description': 'Community community_1 summary covering [apollo_11, buzz_aldrin, command_module_columbia, john_f_kennedy, lunar_module_eagle, massachusetts_institute_of_technology, michael_...</msg>
+<var>${comms}</var>
+<arg>limit=10</arg>
+<doc>Calls GET /communities.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.146079" elapsed="0.025082"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>${comms}[total] &gt;= 1</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.172238" elapsed="0.003524"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-22T19:27:41.180327" level="INFO">${first_id} = community_1</msg>
+<var>${first_id}</var>
+<arg>${comms}[items][0][id]</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.177036" elapsed="0.003686"/>
+</kw>
+<kw name="Read Community" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.186285" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.210987" level="DEBUG">http://graphrag:80 "GET /communities/community_1 HTTP/1.1" 200 15507</msg>
+<msg time="2026-11-22T19:27:41.215426" level="INFO">${comm} = {'edges': [{'document_id': None, 'predicate': 'MENTIONS', 'source': 'neil_armstrong', 'target': 'apollo_11'}, {'document_id': None, 'predicate': 'MENTIONS', 'source': 'neil_armstrong', 'target': 'buzz...</msg>
+<var>${comm}</var>
+<arg>${first_id}</arg>
+<doc>Calls GET /communities/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.181680" elapsed="0.034087"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:41.219189" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${comm}[summary][id]</arg>
+<arg>${first_id}</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.216927" elapsed="0.002730"/>
+</kw>
+<kw name="Edit Community" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.225683" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.243814" level="DEBUG">http://graphrag:80 "PUT /communities/community_1 HTTP/1.1" 200 0</msg>
+<arg>comm_id=${first_id}</arg>
+<arg>description=Updated community description for Apollo 11 graph.</arg>
+<doc>Calls PUT /communities/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.220419" elapsed="0.025865"/>
+</kw>
+<kw name="Read Community" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.252323" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.271911" level="DEBUG">http://graphrag:80 "GET /communities/community_1 HTTP/1.1" 200 3237</msg>
+<msg time="2026-11-22T19:27:41.275763" level="INFO">${updated_comm} = {'edges': [{'document_id': None, 'predicate': 'MENTIONS', 'source': 'neil_armstrong', 'target': 'apollo_11'}, {'document_id': None, 'predicate': 'MENTIONS', 'source': 'neil_armstrong', 'target': 'buzz...</msg>
+<var>${updated_comm}</var>
+<arg>${first_id}</arg>
+<doc>Calls GET /communities/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.247314" elapsed="0.028798"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${updated_comm}[summary][description]</arg>
+<arg>Updated community description</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.277470" elapsed="0.002627"/>
+</kw>
+<doc>Exercises Browse, Read, Edit, and Rebuild across /communities endpoints.</doc>
+<tag>bread</tag>
+<tag>communities</tag>
+<tag>graphrag</tag>
+<status status="PASS" start="2026-11-22T19:27:41.074916" elapsed="0.206174"/>
+</test>
+<test id="s1-s1-s3-t5" name="BREAD Impact On Graphrag Query Answering" line="109">
+<kw name="Add Node" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.293010" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.304493" level="DEBUG">http://graphrag:80 "POST /nodes HTTP/1.1" 201 0</msg>
+<arg>node_id=fred_haise</arg>
+<arg>label=Astronaut</arg>
+<arg>description=Fred Haise served as Lunar Module Pilot on Apollo 13.</arg>
+<doc>Calls POST /nodes.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.286850" elapsed="0.020140"/>
+</kw>
+<kw name="Add Edge" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.313586" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.330578" level="DEBUG">http://graphrag:80 "POST /edges HTTP/1.1" 201 0</msg>
+<arg>source=fred_haise</arg>
+<arg>predicate=ASSIGNED_TO</arg>
+<arg>target=apollo_13</arg>
+<arg>auto_create_nodes=True</arg>
+<doc>Calls POST /edges.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.308069" elapsed="0.024997"/>
+</kw>
+<kw name="Set Variable" owner="BuiltIn">
+<msg time="2026-11-22T19:27:41.337053" level="INFO">${question} = Which mission was astronaut Fred Haise assigned to as Lunar Module Pilot?</msg>
+<var>${question}</var>
+<arg>Which mission was astronaut Fred Haise assigned to as Lunar Module Pilot?</arg>
+<doc>Returns the given values which can then be assigned to a variable.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.334327" elapsed="0.003055"/>
+</kw>
+<kw name="Ask Graphrag Question" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.348182" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.361304" level="DEBUG">http://graphrag:80 "POST /query HTTP/1.1" 200 14221</msg>
+<msg time="2026-11-22T19:27:41.366199" level="INFO">${result} = {'answer': 'Fred Haise served as Lunar Module Pilot on Apollo 13. [Project Apollo] Kennedy\'s goal was accomplished on the Apollo 11 mission when astronauts Neil Armstrong and Buzz Aldrin landed their...</msg>
+<var>${result}</var>
+<arg>${question}</arg>
+<doc>Sends a natural-language question to POST /query and returns {'answer': ..., 'contexts': [...]}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.338416" elapsed="0.028173"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${result}[answer]</arg>
+<arg>Apollo 13</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.367727" elapsed="0.003004"/>
+</kw>
+<kw name="Should Be True" owner="BuiltIn">
+<arg>any("fred_haise" in ctx for ctx in ${result}[contexts])</arg>
+<doc>Fails if the given condition is not true.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.372112" elapsed="0.006179"/>
+</kw>
+<kw name="Delete Edge" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.383586" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.413359" level="DEBUG">http://graphrag:80 "DELETE /edges/fred_haise/ASSIGNED_TO/apollo_13 HTTP/1.1" 204 0</msg>
+<arg>fred_haise</arg>
+<arg>ASSIGNED_TO</arg>
+<arg>apollo_13</arg>
+<doc>Calls DELETE /edges/{source}/{predicate}/{target}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.379170" elapsed="0.036422"/>
+</kw>
+<kw name="Delete Node" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:41.421262" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.435008" level="DEBUG">http://graphrag:80 "DELETE /nodes/fred_haise HTTP/1.1" 204 0</msg>
+<arg>fred_haise</arg>
+<doc>Calls DELETE /nodes/{id}.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.416407" elapsed="0.021254"/>
+</kw>
+<doc>Verifies that adding a new node and edge via BREAD immediately reflects in subsequent /query answers.</doc>
+<tag>bread</tag>
+<tag>graphrag</tag>
+<tag>query</tag>
+<status status="PASS" start="2026-11-22T19:27:41.282890" elapsed="0.155694"/>
+</test>
+<kw name="Cleanup Ingested Documents" owner="GraphragApiLibrary" type="TEARDOWN">
+<msg time="2026-11-22T19:27:41.446540" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.462111" level="DEBUG">http://graphrag:80 "DELETE /documents/temp_apollo_bread.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:41.468371" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.485629" level="DEBUG">http://graphrag:80 "DELETE /documents/05_john_f_kennedy.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:41.491502" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.513223" level="DEBUG">http://graphrag:80 "DELETE /documents/04_michael_collins.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:41.519127" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.537380" level="DEBUG">http://graphrag:80 "DELETE /documents/03_buzz_aldrin.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:41.543616" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.560527" level="DEBUG">http://graphrag:80 "DELETE /documents/02_neil_armstrong.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:41.566817" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.591875" level="DEBUG">http://graphrag:80 "DELETE /documents/01_apollo_program.md HTTP/1.1" 204 0</msg>
+<doc>Deletes all documents ingested during the suite in [Teardown].</doc>
+<status status="PASS" start="2026-11-22T19:27:41.442069" elapsed="0.152094"/>
+</kw>
+<doc>End-to-End integration test suite for Graph RAG Browse, Read, Edit, Add, Delete (BREAD) REST APIs.</doc>
+<status status="PASS" start="2026-11-22T19:27:39.132127" elapsed="2.462393"/>
+</suite>
+<suite id="s1-s1-s4" name="04 Graph Rag Mcp" source="/tmp/robot-tests/tests/04_graph_rag_mcp.robot">
+<kw name="Load Baseline Markdown Directory" owner="GraphragApiLibrary" type="SETUP">
+<msg time="2026-11-22T19:27:41.730549" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.852828" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-11-22T19:27:41.857069" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:41.958626" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<msg time="2026-11-22T19:27:41.966646" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.144816" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 96</msg>
+<msg time="2026-11-22T19:27:42.154719" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.391722" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 100</msg>
+<msg time="2026-11-22T19:27:42.398405" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.588384" level="DEBUG">http://graphrag:80 "POST /ingest HTTP/1.1" 200 99</msg>
+<arg>${BASELINE_DATA_DIR}</arg>
+<doc>Loads all .md files in the given directory (sorted alphabetically) into Graphrag.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.726936" elapsed="0.864691"/>
+</kw>
+<test id="s1-s1-s4-t1" name="MCP Protocol Handshake and Discovery" line="14">
+<kw name="Mcp Initialize" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:42.606088" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.617209" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 287</msg>
+<msg time="2026-11-22T19:27:42.621393" level="INFO">${init_resp} = {'capabilities': {'tools': {}}, 'instructions': 'GraphRAG-RS Model Context Protocol Server for knowledge graph ingestion, hybrid RAG querying, and BREAD data management.', 'protocolVersion': '2024-11-...</msg>
+<var>${init_resp}</var>
+<arg>endpoint=/api/v1/mcp</arg>
+<doc>Performs MCP initialize handshake.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.597175" elapsed="0.024991"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.625754" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${init_resp}[protocolVersion]</arg>
+<arg>2024-11-05</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.623331" elapsed="0.002850"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.629286" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${init_resp}[serverInfo][name]</arg>
+<arg>graphrag-mcp</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.627116" elapsed="0.002628"/>
+</kw>
+<kw name="Mcp Notify Initialized" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:42.635786" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.645883" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 204 0</msg>
+<arg>endpoint=/api/v1/mcp</arg>
+<doc>Sends notifications/initialized notification (204 No Content expected).</doc>
+<status status="PASS" start="2026-11-22T19:27:42.630549" elapsed="0.017583"/>
+</kw>
+<kw name="Mcp Ping" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:42.653959" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.662491" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 36</msg>
+<msg time="2026-11-22T19:27:42.665249" level="INFO">${ping_resp} = {}</msg>
+<var>${ping_resp}</var>
+<arg>endpoint=/api/v1/mcp</arg>
+<doc>Sends ping method to MCP server.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.649166" elapsed="0.016340"/>
+</kw>
+<kw name="Should Be Empty" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.668804" level="INFO">Length is 0.</msg>
+<arg>${ping_resp}</arg>
+<doc>Verifies that the given item is empty.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.666462" elapsed="0.002744"/>
+</kw>
+<kw name="Mcp List Tools" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:42.674306" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.686253" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 16920</msg>
+<msg time="2026-11-22T19:27:42.693993" level="INFO">${tools} = [{'description': 'Browses hierarchical community summaries with member counts.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'limit': {'description': 'Max...</msg>
+<var>${tools}</var>
+<arg>endpoint=/api/v1/mcp</arg>
+<doc>Queries tools/list on MCP server.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.670009" elapsed="0.024936"/>
+</kw>
+<kw name="Length Should Be" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.698961" level="INFO">Length is 28.</msg>
+<arg>${tools}</arg>
+<arg>28</arg>
+<doc>Verifies that the length of the given item is correct.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.696054" elapsed="0.003380"/>
+</kw>
+<kw name="Create List" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.706952" level="INFO">${names} = []</msg>
+<var>${names}</var>
+<doc>Creates and returns a list containing the given items.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.700303" elapsed="0.006922"/>
+</kw>
+<for flavor="IN">
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.710038" elapsed="0.001381"/>
+</kw>
+<var name="${t}">{'description': 'Browses hierarchical community summaries with member counts.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'limit': {'description': 'Maxi...</var>
+<status status="PASS" start="2026-11-22T19:27:42.709242" elapsed="0.002509"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.713399" elapsed="0.001091"/>
+</kw>
+<var name="${t}">{'description': 'Deletes a community summary node and associated hierarchy edges.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'id': {'description': 'Com...</var>
+<status status="PASS" start="2026-11-22T19:27:42.712649" elapsed="0.002090"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.715957" elapsed="0.001269"/>
+</kw>
+<var name="${t}">{'description': 'Updates community description and recomputes embedding.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'description': {'description': 'Upd...</var>
+<status status="PASS" start="2026-11-22T19:27:42.715384" elapsed="0.002102"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.718543" elapsed="0.000962"/>
+</kw>
+<var name="${t}">{'description': 'Retrieves a community summary by ID with member nodes and intra-community edges.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'id': {'de...</var>
+<status status="PASS" start="2026-11-22T19:27:42.718033" elapsed="0.001710"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.721120" elapsed="0.001106"/>
+</kw>
+<var name="${t}">{'description': 'Triggers deterministic connected-components clustering and rebuilds community summaries.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'type': 'object'}...</var>
+<status status="PASS" start="2026-11-22T19:27:42.720313" elapsed="0.002151"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.723460" elapsed="0.000868"/>
+</kw>
+<var name="${t}">{'description': 'Adds and ingests a new Markdown document into the knowledge graph.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'content': {'description...</var>
+<status status="PASS" start="2026-11-22T19:27:42.722955" elapsed="0.001612"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.725699" elapsed="0.000864"/>
+</kw>
+<var name="${t}">{'description': 'Lists ingested Markdown documents with pagination and optional query filtering.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'limit': {'...</var>
+<status status="PASS" start="2026-11-22T19:27:42.725196" elapsed="0.001580"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.727692" elapsed="0.000975"/>
+</kw>
+<var name="${t}">{'description': 'Deletes a document and its associated graph elements.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'id': {'description': 'Document ID to...</var>
+<status status="PASS" start="2026-11-22T19:27:42.727241" elapsed="0.001679"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.729973" elapsed="0.000883"/>
+</kw>
+<var name="${t}">{'description': 'Updates an existing Markdown document and refreshes its extracted graph elements.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'content'...</var>
+<status status="PASS" start="2026-11-22T19:27:42.729473" elapsed="0.001606"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.732084" elapsed="0.001387"/>
+</kw>
+<var name="${t}">{'description': 'Retrieves a document by ID with its extracted nodes and edges.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'id': {'description': 'Docum...</var>
+<status status="PASS" start="2026-11-22T19:27:42.731580" elapsed="0.002164"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.734912" elapsed="0.000887"/>
+</kw>
+<var name="${t}">{'description': 'Adds a directed edge between nodes.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'auto_create_nodes': {'description': 'Whether to auto-c...</var>
+<status status="PASS" start="2026-11-22T19:27:42.734358" elapsed="0.001663"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.737106" elapsed="0.001109"/>
+</kw>
+<var name="${t}">{'description': 'Browses directed graph edges with optional endpoint, predicate, or document filtering.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'doc...</var>
+<status status="PASS" start="2026-11-22T19:27:42.736539" elapsed="0.001956"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.739995" elapsed="0.001312"/>
+</kw>
+<var name="${t}">{'description': 'Deletes a directed edge by source, predicate, and target IDs.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'predicate': {'description': ...</var>
+<status status="PASS" start="2026-11-22T19:27:42.739228" elapsed="0.002372"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.742782" elapsed="0.000898"/>
+</kw>
+<var name="${t}">{'description': 'Updates a directed edge predicate or origin document ID.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'document_id': {'description': 'Up...</var>
+<status status="PASS" start="2026-11-22T19:27:42.742216" elapsed="0.001655"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.744997" elapsed="0.000776"/>
+</kw>
+<var name="${t}">{'description': 'Retrieves a directed edge by its source, predicate, and target IDs.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'predicate': {'descript...</var>
+<status status="PASS" start="2026-11-22T19:27:42.744483" elapsed="0.001481"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.746799" elapsed="0.000650"/>
+</kw>
+<var name="${t}">{'description': 'Exports a bounded multi-layer semantic ontology subgraph (Layer 2 Concepts/Metrics/Communities, Layer 1 Datasets, Layer 0 Fields, JOINABLE_WITH, FORBIDDEN_JOIN, and derived CONFOUNDED...</var>
+<status status="PASS" start="2026-11-22T19:27:42.746424" elapsed="0.001199"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.748408" elapsed="0.000777"/>
+</kw>
+<var name="${t}">{'description': 'Plans the highest-confidence multi-hop join path across datasets while blocking FORBIDDEN_JOIN edges and warning on N:M or 1:N*1:N fan-out traps.', 'inputSchema': {'$schema': 'https:/...</var>
+<status status="PASS" start="2026-11-22T19:27:42.748023" elapsed="0.001351"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.750179" elapsed="0.000658"/>
+</kw>
+<var name="${t}">{'description': 'Ingests a raw Markdown document into the knowledge graph.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'content': {'description': 'Full ...</var>
+<status status="PASS" start="2026-11-22T19:27:42.749791" elapsed="0.001218"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.751728" elapsed="0.000629"/>
+</kw>
+<var name="${t}">{'description': 'Executes a hybrid Graph RAG query combining semantic similarity, graph neighborhood expansion, and community summaries.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/202...</var>
+<status status="PASS" start="2026-11-22T19:27:42.751378" elapsed="0.001154"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.753448" elapsed="0.000671"/>
+</kw>
+<var name="${t}">{'description': 'Generates a friendly greeting response for a specified user or entity name.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'name': {'descr...</var>
+<status status="PASS" start="2026-11-22T19:27:42.753057" elapsed="0.001231"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.755006" elapsed="0.000587"/>
+</kw>
+<var name="${t}">{'description': 'Creates or upserts a node, computes its embedding, and updates community summaries.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'descri...</var>
+<status status="PASS" start="2026-11-22T19:27:42.754669" elapsed="0.001077"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.756454" elapsed="0.000782"/>
+</kw>
+<var name="${t}">{'description': 'Browses or searches knowledge objects/nodes with optional semantic or label filtering.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'doc...</var>
+<status status="PASS" start="2026-11-22T19:27:42.756124" elapsed="0.001333"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.758448" elapsed="0.001062"/>
+</kw>
+<var name="${t}">{'description': 'Deletes a node and cascades deletion to all incident edges.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'id': {'description': 'Entity I...</var>
+<status status="PASS" start="2026-11-22T19:27:42.757939" elapsed="0.001819"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.760809" elapsed="0.001012"/>
+</kw>
+<var name="${t}">{'description': 'Updates an existing node and refreshes its vector embedding.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'description': {'description':...</var>
+<status status="PASS" start="2026-11-22T19:27:42.760288" elapsed="0.001820"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.763277" elapsed="0.001046"/>
+</kw>
+<var name="${t}">{'description': 'Retrieves a node by canonical ID along with incoming and outgoing edges.', 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'properties': {'id': {'descriptio...</var>
+<status status="PASS" start="2026-11-22T19:27:42.762719" elapsed="0.001820"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.765563" elapsed="0.001780"/>
+</kw>
+<var name="${t}">{'description': "Records a human steward decision ('verify' or 'reject' -&gt; FORBIDDEN_JOIN) on a join relationship.", 'inputSchema': {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'propert...</var>
+<status status="PASS" start="2026-11-22T19:27:42.765114" elapsed="0.002492"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.768799" elapsed="0.001108"/>
+</kw>
+<var name="${t}">{'description': "Certifies or updates a field's epistemic statistical_profile (distribution family, recommended test family, known confounders) with human steward attribution.", 'inputSchema': {'$sche...</var>
+<status status="PASS" start="2026-11-22T19:27:42.768218" elapsed="0.001955"/>
+</iter>
+<iter>
+<kw name="Append To List" owner="Collections">
+<arg>${names}</arg>
+<arg>${t}[name]</arg>
+<doc>Adds `values` to the end of `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.771450" elapsed="0.000806"/>
+</kw>
+<var name="${t}">{'description': 'Synchronizes a profiled dataset, its field nodes, and empirical join probe edges into the autonomous semantic ontology.', 'inputSchema': {'$defs': {'OntologyFieldInput': {'properties'...</var>
+<status status="PASS" start="2026-11-22T19:27:42.770940" elapsed="0.001517"/>
+</iter>
+<var>${t}</var>
+<value>@{tools}</value>
+<status status="PASS" start="2026-11-22T19:27:42.707711" elapsed="0.064926"/>
+</for>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>hello</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.773198" elapsed="0.001243"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>graphrag_ingest</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.774980" elapsed="0.000858"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>graphrag_query</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.776494" elapsed="0.000840"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>document_browse</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.777845" elapsed="0.000726"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>document_read</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.779055" elapsed="0.000695"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>document_edit</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.780229" elapsed="0.000763"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>document_add</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.781486" elapsed="0.000732"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>ontology_sync_dataset</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.782719" elapsed="0.000706"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>ontology_steward_edge</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.783957" elapsed="0.000784"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>graphrag_find_join_path</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.785270" elapsed="0.000728"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>graphrag_export_subgraph</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.786544" elapsed="0.000943"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>document_delete</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.788153" elapsed="0.001081"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>node_browse</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.789839" elapsed="0.000994"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>node_read</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.791396" elapsed="0.000893"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>node_edit</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.792942" elapsed="0.000976"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>node_add</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.794449" elapsed="0.000732"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>node_delete</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.795663" elapsed="0.000713"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>edge_browse</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.796945" elapsed="0.000763"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>edge_read</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.798284" elapsed="0.000889"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>edge_edit</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.799808" elapsed="0.000918"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>edge_add</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.801251" elapsed="0.000720"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>edge_delete</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.802480" elapsed="0.016730"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>community_browse</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.820003" elapsed="0.001056"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>community_read</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.821637" elapsed="0.000836"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>community_edit</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.823063" elapsed="0.000868"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>community_rebuild</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.824495" elapsed="0.001053"/>
+</kw>
+<kw name="List Should Contain Value" owner="Collections">
+<arg>${names}</arg>
+<arg>community_delete</arg>
+<doc>Fails if the `value` is not found from `list`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.826279" elapsed="0.001117"/>
+</kw>
+<doc>Verifies initialize, ping, notifications/initialized, and tools/list via JSON-RPC 2.0.</doc>
+<tag>handshake</tag>
+<tag>mcp</tag>
+<status status="PASS" start="2026-11-22T19:27:42.592304" elapsed="0.235760"/>
+</test>
+<test id="s1-s1-s4-t2" name="MCP Baseline Tool: Hello" line="67">
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.835974" level="INFO">${args} = {'name': '  Antigravity Agent  '}</msg>
+<var>${args}</var>
+<arg>name=${SPACE}${SPACE}Antigravity Agent${SPACE}${SPACE}</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.832393" elapsed="0.003864"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:42.841588" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.852206" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 114</msg>
+<msg time="2026-11-22T19:27:42.854358" level="INFO">${res} = {'content': [{'text': 'Hello, Antigravity Agent!', 'type': 'text'}], 'isError': False}</msg>
+<var>${res}</var>
+<arg>tool_name=hello</arg>
+<arg>arguments=${args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.837204" elapsed="0.017392"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.860464" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.855586" elapsed="0.005392"/>
+</kw>
+<kw name="Should Be Equal As Strings" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.863743" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;
+&lt;class 'str'&gt;</msg>
+<arg>${res}[content][0][text]</arg>
+<arg>Hello, Antigravity Agent!</arg>
+<doc>Fails if objects are unequal after converting them to strings.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.861733" elapsed="0.002446"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.868245" level="INFO">${empty_args} = {'name': '  '}</msg>
+<var>${empty_args}</var>
+<arg>name=${SPACE}${SPACE}</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.865510" elapsed="0.002984"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:42.877812" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.889630" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 117</msg>
+<msg time="2026-11-22T19:27:42.891362" level="INFO">${err_res} = {'content': [{'text': 'Greeting name cannot be empty', 'type': 'text'}], 'isError': True}</msg>
+<var>${err_res}</var>
+<arg>tool_name=hello</arg>
+<arg>arguments=${empty_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.869426" elapsed="0.022098"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.894219" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${err_res}[isError]</arg>
+<arg>${True}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.892237" elapsed="0.002610"/>
+</kw>
+<doc>Verifies canonical hello smoke-test tool with greeting and error behavior.</doc>
+<tag>hello</tag>
+<tag>mcp</tag>
+<status status="PASS" start="2026-11-22T19:27:42.829507" elapsed="0.066241"/>
+</test>
+<test id="s1-s1-s4-t3" name="MCP BREAD Lifecycle: Documents" line="82">
+<kw name="Convert To Integer" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.902583" level="DEBUG">Argument types are:
+&lt;class 'str'&gt;</msg>
+<msg time="2026-11-22T19:27:42.903215" level="INFO">${limit_int} = 10</msg>
+<var>${limit_int}</var>
+<arg>10</arg>
+<doc>Converts the given item to an integer number.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.901190" elapsed="0.002204"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.908142" level="INFO">${browse_args} = {'limit': 10}</msg>
+<var>${browse_args}</var>
+<arg>limit=${limit_int}</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.904148" elapsed="0.004217"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:42.912353" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.922853" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 6066</msg>
+<msg time="2026-11-22T19:27:42.925136" level="INFO">${browse_res} = {'content': [{'text': '{\n  "items": [\n    {\n      "id": "01_apollo_program.md",\n      "filename": "01_apollo_program.md",\n      "content": "# Project Apollo\\n\\nThe Apollo program, also known as...</msg>
+<var>${browse_res}</var>
+<arg>tool_name=document_browse</arg>
+<arg>arguments=${browse_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.909116" elapsed="0.016218"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.927375" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${browse_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.926047" elapsed="0.001573"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${browse_res}[content][0][text]</arg>
+<arg>04_michael_collins.md</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.928161" elapsed="0.001439"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.931876" level="INFO">${read_args} = {'id': '04_michael_collins.md'}</msg>
+<var>${read_args}</var>
+<arg>id=04_michael_collins.md</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.930283" elapsed="0.001744"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:42.935553" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:42.948064" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 3077</msg>
+<msg time="2026-11-22T19:27:42.950271" level="INFO">${read_res} = {'content': [{'text': '{\n  "document": {\n    "id": "04_michael_collins.md",\n    "filename": "04_michael_collins.md",\n    "content": "# Michael Collins (astronaut)\\n\\nMichael Collins (October 31,...</msg>
+<var>${read_res}</var>
+<arg>tool_name=document_read</arg>
+<arg>arguments=${read_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.932528" elapsed="0.017914"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.952375" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${read_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.951092" elapsed="0.001788"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${read_res}[content][0][text]</arg>
+<arg>Michael Collins</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.953519" elapsed="0.001489"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:42.957448" level="INFO">${add_args} = {'filename': 'temp_mcp_doc.md', 'content': '# MCP Integration\n\nMCP document content test.'}</msg>
+<var>${add_args}</var>
+<arg>filename=temp_mcp_doc.md</arg>
+<arg>content=# MCP Integration\n\nMCP document content test.</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.955712" elapsed="0.001881"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:42.961683" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.301949" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 215</msg>
+<msg time="2026-11-22T19:27:43.304989" level="INFO">${add_res} = {'content': [{'text': '{\n  "chunks_processed": 1,\n  "document_id": "temp_mcp_doc.md",\n  "edges_extracted": 0,\n  "nodes_extracted": 1\n}', 'type': 'text'}], 'isError': False}</msg>
+<var>${add_res}</var>
+<arg>tool_name=document_add</arg>
+<arg>arguments=${add_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:42.958090" elapsed="0.347281"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.308752" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${add_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.306734" elapsed="0.002291"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${add_res}[content][0][text]</arg>
+<arg>temp_mcp_doc.md</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.309568" elapsed="0.001244"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.312776" level="INFO">${edit_args} = {'id': 'temp_mcp_doc.md', 'content': '# MCP Integration Updated\n\nUpdated document content test.'}</msg>
+<var>${edit_args}</var>
+<arg>id=temp_mcp_doc.md</arg>
+<arg>content=# MCP Integration Updated\n\nUpdated document content test.</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.311408" elapsed="0.001500"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:43.316032" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.486376" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 450</msg>
+<msg time="2026-11-22T19:27:43.489079" level="INFO">${edit_res} = {'content': [{'text': '{\n  "document": {\n    "id": "temp_mcp_doc.md",\n    "filename": "temp_mcp_doc.md",\n    "content": "# MCP Integration Updated\\n\\nUpdated document content test.",\n    "updat...</msg>
+<var>${edit_res}</var>
+<arg>tool_name=document_edit</arg>
+<arg>arguments=${edit_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.313340" elapsed="0.175966"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.492202" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${edit_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.490366" elapsed="0.002178"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${edit_res}[content][0][text]</arg>
+<arg>Updated document content</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.493418" elapsed="0.001913"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.498420" level="INFO">${del_args} = {'id': 'temp_mcp_doc.md'}</msg>
+<var>${del_args}</var>
+<arg>id=temp_mcp_doc.md</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.496347" elapsed="0.002255"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:43.511186" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.533910" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 137</msg>
+<msg time="2026-11-22T19:27:43.537602" level="INFO">${del_res} = {'content': [{'text': "Document 'temp_mcp_doc.md' deleted successfully.", 'type': 'text'}], 'isError': False}</msg>
+<var>${del_res}</var>
+<arg>tool_name=document_delete</arg>
+<arg>arguments=${del_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.499252" elapsed="0.038626"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.541904" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${del_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.539361" elapsed="0.002974"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${del_res}[content][0][text]</arg>
+<arg>deleted successfully</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.543297" elapsed="0.001654"/>
+</kw>
+<doc>Exercises document BREAD tools over MCP JSON-RPC.</doc>
+<tag>bread</tag>
+<tag>documents</tag>
+<tag>mcp</tag>
+<status status="PASS" start="2026-11-22T19:27:42.898014" elapsed="0.647364"/>
+</test>
+<test id="s1-s1-s4-t4" name="MCP BREAD Lifecycle: Nodes and Edges" line="117">
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.552463" level="INFO">${node_args} = {'id': 'dudley_buck', 'label': 'Scientist', 'description': 'Dudley Buck was an MIT researcher in cryogenics and cryotrons.'}</msg>
+<var>${node_args}</var>
+<arg>id=dudley_buck</arg>
+<arg>label=Scientist</arg>
+<arg>description=Dudley Buck was an MIT researcher in cryogenics and cryotrons.</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.550181" elapsed="0.002522"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:43.557553" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.574147" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 93</msg>
+<msg time="2026-11-22T19:27:43.576450" level="INFO">${node_add_res} = {'content': [{'text': 'null', 'type': 'text'}], 'isError': False}</msg>
+<var>${node_add_res}</var>
+<arg>tool_name=node_add</arg>
+<arg>arguments=${node_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.553410" elapsed="0.023919"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.580348" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${node_add_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.578420" elapsed="0.002425"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.583893" level="INFO">${node_read_args} = {'id': 'dudley_buck'}</msg>
+<var>${node_read_args}</var>
+<arg>id=dudley_buck</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.581823" elapsed="0.002235"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:43.588077" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.602470" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 1337</msg>
+<msg time="2026-11-22T19:27:43.604472" level="INFO">${node_read_res} = {'content': [{'text': '{\n  "incoming_edges": [],\n  "node": {\n    "description": "Dudley Buck was an MIT researcher in cryogenics and cryotrons.",\n    "document_id": null,\n    "embedding": [\n    ...</msg>
+<var>${node_read_res}</var>
+<arg>tool_name=node_read</arg>
+<arg>arguments=${node_read_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.584652" elapsed="0.020044"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.606779" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${node_read_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.605387" elapsed="0.001737"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${node_read_res}[content][0][text]</arg>
+<arg>Scientist</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.607768" elapsed="0.001691"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.612048" level="INFO">${edge_args} = {'source_id': 'buzz_aldrin', 'predicate': 'STUDIED_AT', 'target_id': 'dudley_buck', 'auto_create_nodes': True}</msg>
+<var>${edge_args}</var>
+<arg>source_id=buzz_aldrin</arg>
+<arg>predicate=STUDIED_AT</arg>
+<arg>target_id=dudley_buck</arg>
+<arg>auto_create_nodes=${True}</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.610118" elapsed="0.002097"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:43.616247" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.637554" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 93</msg>
+<msg time="2026-11-22T19:27:43.639350" level="INFO">${edge_add_res} = {'content': [{'text': 'null', 'type': 'text'}], 'isError': False}</msg>
+<var>${edge_add_res}</var>
+<arg>tool_name=edge_add</arg>
+<arg>arguments=${edge_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.612794" elapsed="0.026736"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.642126" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${edge_add_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.640354" elapsed="0.002066"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.645067" level="INFO">${edge_read_args} = {'source_id': 'buzz_aldrin', 'predicate': 'STUDIED_AT', 'target_id': 'dudley_buck'}</msg>
+<var>${edge_read_args}</var>
+<arg>source_id=buzz_aldrin</arg>
+<arg>predicate=STUDIED_AT</arg>
+<arg>target_id=dudley_buck</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.643302" elapsed="0.001914"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:43.649214" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.661880" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 420</msg>
+<msg time="2026-11-22T19:27:43.664098" level="INFO">${edge_read_res} = {'content': [{'text': '{\n  "edge": {\n    "document_id": null,\n    "predicate": "STUDIED_AT",\n    "source": "buzz_aldrin",\n    "target": "dudley_buck"\n  },\n  "source_node": {\n    "id": "buzz_al...</msg>
+<var>${edge_read_res}</var>
+<arg>tool_name=edge_read</arg>
+<arg>arguments=${edge_read_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.645752" elapsed="0.018595"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.667253" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${edge_read_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.665528" elapsed="0.002029"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.670476" level="INFO">${edge_del_args} = {'source_id': 'buzz_aldrin', 'predicate': 'STUDIED_AT', 'target_id': 'dudley_buck'}</msg>
+<var>${edge_del_args}</var>
+<arg>source_id=buzz_aldrin</arg>
+<arg>predicate=STUDIED_AT</arg>
+<arg>target_id=dudley_buck</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.668457" elapsed="0.002193"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:43.674883" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.687183" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 154</msg>
+<msg time="2026-11-22T19:27:43.689370" level="INFO">${edge_del_res} = {'content': [{'text': 'Edge (buzz_aldrin, STUDIED_AT, dudley_buck) deleted successfully.', 'type': 'text'}], 'isError': False}</msg>
+<var>${edge_del_res}</var>
+<arg>tool_name=edge_delete</arg>
+<arg>arguments=${edge_del_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.671254" elapsed="0.018349"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.692387" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${edge_del_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.690643" elapsed="0.002179"/>
+</kw>
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.695873" level="INFO">${node_del_args} = {'id': 'dudley_buck'}</msg>
+<var>${node_del_args}</var>
+<arg>id=dudley_buck</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.693818" elapsed="0.002232"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:43.700855" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.719481" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 129</msg>
+<msg time="2026-11-22T19:27:43.723107" level="INFO">${node_del_res} = {'content': [{'text': "Node 'dudley_buck' deleted successfully.", 'type': 'text'}], 'isError': False}</msg>
+<var>${node_del_res}</var>
+<arg>tool_name=node_delete</arg>
+<arg>arguments=${node_del_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.696909" elapsed="0.026454"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.726231" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${node_del_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.724337" elapsed="0.002281"/>
+</kw>
+<doc>Exercises node and edge BREAD tools over MCP JSON-RPC.</doc>
+<tag>bread</tag>
+<tag>edges</tag>
+<tag>mcp</tag>
+<tag>nodes</tag>
+<status status="PASS" start="2026-11-22T19:27:43.546863" elapsed="0.180434"/>
+</test>
+<test id="s1-s1-s4-t5" name="MCP Pipeline Query Tool" line="152">
+<kw name="Create Dictionary" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.733301" level="INFO">${query_args} = {'question': 'Who flew the Apollo 11 command module Columbia in lunar orbit?'}</msg>
+<var>${query_args}</var>
+<arg>question=Who flew the Apollo 11 command module Columbia in lunar orbit?</arg>
+<doc>Creates and returns a dictionary based on the given `items`.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.731543" elapsed="0.001894"/>
+</kw>
+<kw name="Mcp Call Tool" owner="GraphragApiLibrary">
+<msg time="2026-11-22T19:27:43.736839" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.753853" level="DEBUG">http://graphrag:80 "POST /api/v1/mcp HTTP/1.1" 200 25451</msg>
+<msg time="2026-11-22T19:27:43.757264" level="INFO">${query_res} = {'content': [{'text': '{\n  "answer": "[Michael Collins] # Michael Collins (astronaut)  On Apollo 11 in July 1969, Collins served as the Command Module Pilot, remaining in lunar orbit in Columbia for ...</msg>
+<var>${query_res}</var>
+<arg>tool_name=graphrag_query</arg>
+<arg>arguments=${query_args}</arg>
+<doc>Calls a tool via tools/call and returns the tool call result object.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.733906" elapsed="0.023599"/>
+</kw>
+<kw name="Should Be Equal" owner="BuiltIn">
+<msg time="2026-11-22T19:27:43.760205" level="DEBUG">Argument types are:
+&lt;class 'bool'&gt;
+&lt;class 'bool'&gt;</msg>
+<arg>${query_res}[isError]</arg>
+<arg>${False}</arg>
+<doc>Fails if the given objects are unequal.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.758664" elapsed="0.001997"/>
+</kw>
+<kw name="Should Contain" owner="BuiltIn">
+<arg>${query_res}[content][0][text]</arg>
+<arg>Michael Collins</arg>
+<doc>Fails if the `container` does not contain the `item` one or more times.</doc>
+<status status="PASS" start="2026-11-22T19:27:43.761838" elapsed="0.001670"/>
+</kw>
+<doc>Exercises graphrag_query tool to verify end-to-end RAG reasoning over MCP.</doc>
+<tag>mcp</tag>
+<tag>pipeline</tag>
+<tag>query</tag>
+<status status="PASS" start="2026-11-22T19:27:43.728849" elapsed="0.035188"/>
+</test>
+<kw name="Cleanup Ingested Documents" owner="GraphragApiLibrary" type="TEARDOWN">
+<msg time="2026-11-22T19:27:43.769234" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.787628" level="DEBUG">http://graphrag:80 "DELETE /documents/05_john_f_kennedy.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:43.793324" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.813791" level="DEBUG">http://graphrag:80 "DELETE /documents/04_michael_collins.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:43.817638" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.838361" level="DEBUG">http://graphrag:80 "DELETE /documents/03_buzz_aldrin.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:43.842136" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.857169" level="DEBUG">http://graphrag:80 "DELETE /documents/02_neil_armstrong.md HTTP/1.1" 204 0</msg>
+<msg time="2026-11-22T19:27:43.861707" level="DEBUG">Starting new HTTP connection (1): graphrag:80</msg>
+<msg time="2026-11-22T19:27:43.877813" level="DEBUG">http://graphrag:80 "DELETE /documents/01_apollo_program.md HTTP/1.1" 204 0</msg>
+<doc>Deletes all documents ingested during the suite in [Teardown].</doc>
+<status status="PASS" start="2026-11-22T19:27:43.766245" elapsed="0.113185"/>
+</kw>
+<doc>End-to-End integration test suite for Graph RAG Model Context Protocol (MCP) Service.</doc>
+<status status="PASS" start="2026-11-22T19:27:41.606691" elapsed="2.272987"/>
+</suite>
+<status status="PASS" start="2026-11-22T19:27:37.510179" elapsed="6.372993"/>
+</suite>
+<status status="PASS" start="2026-11-22T19:27:37.338980" elapsed="6.546852"/>
+</suite>
+<statistics>
+<total>
+<stat pass="20" fail="0" skip="0">All Tests</stat>
+</total>
+<tag>
+<stat pass="4" fail="0" skip="0">api</stat>
+<stat pass="7" fail="0" skip="0">bread</stat>
+<stat pass="1" fail="0" skip="0">communities</stat>
+<stat pass="2" fail="0" skip="0">documents</stat>
+<stat pass="2" fail="0" skip="0">edges</stat>
+<stat pass="1" fail="0" skip="0">foundation</stat>
+<stat pass="8" fail="0" skip="0">graphrag</stat>
+<stat pass="3" fail="0" skip="0">hams</stat>
+<stat pass="1" fail="0" skip="0">handshake</stat>
+<stat pass="2" fail="0" skip="0">health</stat>
+<stat pass="1" fail="0" skip="0">hello</stat>
+<stat pass="5" fail="0" skip="0">mcp</stat>
+<stat pass="1" fail="0" skip="0">metrics</stat>
+<stat pass="2" fail="0" skip="0">multi-hop</stat>
+<stat pass="2" fail="0" skip="0">negative</stat>
+<stat pass="2" fail="0" skip="0">nodes</stat>
+<stat pass="1" fail="0" skip="0">pipeline</stat>
+<stat pass="1" fail="0" skip="0">positive</stat>
+<stat pass="3" fail="0" skip="0">prefix</stat>
+<stat pass="2" fail="0" skip="0">query</stat>
+<stat pass="3" fail="0" skip="0">ragas</stat>
+<stat pass="1" fail="0" skip="0">single-hop</stat>
+</tag>
+<suite>
+<stat name="Robot-Tests" id="s1" pass="20" fail="0" skip="0">Robot-Tests</stat>
+<stat name="Tests" id="s1-s1" pass="20" fail="0" skip="0">Robot-Tests.Tests</stat>
+<stat name="01 Health And Foundation" id="s1-s1-s1" pass="7" fail="0" skip="0">Robot-Tests.Tests.01 Health And Foundation</stat>
+<stat name="02 Graph Rag Baseline" id="s1-s1-s2" pass="3" fail="0" skip="0">Robot-Tests.Tests.02 Graph Rag Baseline</stat>
+<stat name="03 Graph Rag Bread Api" id="s1-s1-s3" pass="5" fail="0" skip="0">Robot-Tests.Tests.03 Graph Rag Bread Api</stat>
+<stat name="04 Graph Rag Mcp" id="s1-s1-s4" pass="5" fail="0" skip="0">Robot-Tests.Tests.04 Graph Rag Mcp</stat>
+</suite>
+</statistics>
+<errors>
+</errors>
+</robot>
