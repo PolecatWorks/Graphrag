@@ -2128,30 +2128,34 @@ impl GraphStore {
         Ok((answer, contexts))
     }
 
-    pub async fn delete_document(&self, pool: &PgPool, document_id: &str) {
-        {
-            let mut guard = self.memory.write().await;
-            guard.documents.remove(document_id);
-            guard
-                .nodes
-                .retain(|_, n| n.document_id.as_deref() != Some(document_id));
-            guard
-                .edges
-                .retain(|e| e.document_id.as_deref() != Some(document_id));
-        }
+    pub async fn delete_document(
+        &self,
+        pool: &PgPool,
+        document_id: &str,
+    ) -> Result<(), GraphRagError> {
+        sqlx::query("DELETE FROM graph_documents WHERE id = $1")
+            .bind(document_id)
+            .execute(pool)
+            .await?;
+        sqlx::query("DELETE FROM knowledge_objects WHERE document_id = $1")
+            .bind(document_id)
+            .execute(pool)
+            .await?;
+        sqlx::query("DELETE FROM graph_tuples WHERE document_id = $1")
+            .bind(document_id)
+            .execute(pool)
+            .await?;
 
-        let _ = sqlx::query("DELETE FROM graph_documents WHERE id = $1")
-            .bind(document_id)
-            .execute(pool)
-            .await;
-        let _ = sqlx::query("DELETE FROM knowledge_objects WHERE document_id = $1")
-            .bind(document_id)
-            .execute(pool)
-            .await;
-        let _ = sqlx::query("DELETE FROM graph_tuples WHERE document_id = $1")
-            .bind(document_id)
-            .execute(pool)
-            .await;
+        let mut guard = self.memory.write().await;
+        guard.documents.remove(document_id);
+        guard
+            .nodes
+            .retain(|_, n| n.document_id.as_deref() != Some(document_id));
+        guard
+            .edges
+            .retain(|e| e.document_id.as_deref() != Some(document_id));
+
+        Ok(())
     }
 }
 
