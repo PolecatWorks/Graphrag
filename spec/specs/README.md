@@ -34,3 +34,4 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [22. Autonomous Ontology Schema, Epistemic Lifecycle & Dataset Sync (`POST /ontology/sync-dataset`)](./22-ontology-schema-and-dataset-sync-spec.md) - `complete`
 *   [23. Multi-Hop Steiner Join-Path Planner, `FORBIDDEN_JOIN` Blocking & Fan-Out Detector (`POST /ontology/join-path`)](./23-ontology-join-path-planner-spec.md) - `complete`
 *   [24. Epistemic Statistical Traits, Known Confounders & Join-Path Statistical Caveats](./24-epistemic-statistical-traits-and-confounders-spec.md) - `draft`
+*   [25. Bounded Ontology Subgraph Export for Topology Visualization (`GET /ontology/subgraph` & MCP `graphrag_export_subgraph`)](./25-ontology-subgraph-export-spec.md) - `draft`
