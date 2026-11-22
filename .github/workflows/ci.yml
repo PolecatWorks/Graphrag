@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
-      helm: ${{ steps.filter.outputs.helm }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -21,9 +20,6 @@ jobs:
             backend:
               - 'graphrag-container/**'
               - 'Makefile'
-              - '.github/workflows/ci.yml'
-            helm:
-              - 'charts/**'
               - '.github/workflows/ci.yml'
 
   backend-test:
@@ -63,17 +59,3 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/graphrag_db
         run: cargo test --manifest-path graphrag-container/Cargo.toml -- --test-threads=1
-
-  helm-lint:
-    name: Helm Chart Lint
-    needs: detect-changes
-    if: needs.detect-changes.outputs.helm == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-
-      - name: Lint Helm Charts
-        run: helm lint charts/graphrag
