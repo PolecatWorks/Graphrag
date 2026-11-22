@@ -5,6 +5,7 @@ This directory contains the foundational Product Requirements Documents that des
 ## Foundational PRDs
 * [Backend Foundations](./backend-foundations-prd.md)
 * [GitHub CI, Multi-Arch Docker Publish & Ephemeral Integration Testing](./ci-cd-container-integration-prd.md)
+* [GraphRAG Keycloak Service Claims & Auth Addendum](./keycloak-claims-and-service-auth-prd.md) *(references the canonical ecosystem auth pattern in `Mfe-shell`)*
 
 ## Related
 * [Specifications (Specs)](../specs/README.md) - Derived implementation contracts.

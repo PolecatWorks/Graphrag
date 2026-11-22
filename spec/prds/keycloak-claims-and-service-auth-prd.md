@@ -1,56 +1,27 @@
-# GraphRAG Keycloak Client Claims & MCP Service Account Authentication PRD
+# GraphRAG Keycloak Service Claims & Auth Addendum PRD
 
-## Overview
-This PRD defines the authentication and claims contract for **GraphRAG (`graphrag-rs`)**, specifying how GraphRAG:
-1. **Acts as a Resource Server (`graphrag-api`)**: Validating incoming user and machine tokens via cluster Keycloak JWKS.
-2. **Defines Domain-Specific Claims & Roles**: Isolated under `resource_access['graphrag-api']` and custom `graphrag` claims.
-3. **Authenticates Upstream & Downstream MCP Clients**: Accepting authorized service accounts (such as `angry-agent-sa`) and invoking downstream data services with its own service account (`graphrag-sa`).
-
----
-
-## Architecture Topology
-
-```mermaid
-flowchart LR
-    subgraph Clients ["Callers"]
-        UserBrowser["MFE Shell / UI (End-User Token)"]
-        AngryAgent["Angry-Agent Backend (angry-agent-sa Token)"]
-    end
-
-    subgraph Identity ["Keycloak (auth.svc)"]
-        JWKS["JWKS Certs Endpoint"]
-        Client_API["KeycloakClient: graphrag-api\n(Bearer-Only)"]
-        Client_SA["KeycloakClient: graphrag-sa\n(Confidential / Service Account)"]
-    end
-
-    subgraph Service ["GraphRAG Backend (graphrag-rs)"]
-        AuthLayer["Axum / Tower Auth Middleware"]
-        GraphEngine["Ontology, Knowledge Graph & Hybrid Search"]
-    end
-
-    Clients -->|Bearer JWT (aud: graphrag-api)| AuthLayer
-    AuthLayer -->|Verify Signature & Claims| JWKS
-    AuthLayer -->|Authorized Context| GraphEngine
-    GraphEngine -->|M2M calls with graphrag-sa token| Keycloak
-```
+> [!IMPORTANT]
+> **Canonical Auth Pattern**: Global Keycloak OIDC (`shell-ui` + `ecosystem-audiences`), `@polecatworks/mfe-shared` token distribution, zero-fake-auth rules, dynamic JWKS verification, and M2M `client_credentials` mechanics are defined canonically in [**Mfe-shell: Ecosystem Keycloak OIDC, Claims Distribution & Service Auth Pattern PRD**](https://github.com/PolecatWorks/Mfe-shell/blob/main/spec/prds/keycloak-oidc-and-claims-distribution-prd.md).
+>
+> This document specifies only the **GraphRAG (`graphrag-container`)** service-local contract.
 
 ---
 
-## Specification Details
+## 1. Keycloak Client & Roles (`graphrag-api`)
 
-### 1. Keycloak Client Definition (`KeycloakClient: graphrag-api`)
-- **Client ID**: `graphrag-api`
-- **Type**: Bearer-only / Resource Server
-- **Audience**: `aud: ["graphrag-api"]`
-- **Client Roles**:
-  - `graph:read`: Query knowledge graphs, execute vector searches, retrieve ontology definitions.
-  - `graph:write`: Ingest entities, create relations, trigger graph construction pipelines.
+- **Client ID (`aud`)**: `graphrag-api`
+- **Type**: Bearer-only / Resource Server (declared in `fluxcd-dev/keycloak-crs.yaml`)
+- **Client Roles** (`resource_access["graphrag-api"].roles`):
+  - `graph:read`: Query knowledge graphs, execute hybrid/vector searches, retrieve ontology definitions and subgraphs.
+  - `graph:write`: Ingest documents/entities, steward relations/fields, and trigger graph/community construction pipelines.
   - `graph:admin`: Manage schema taxonomies, wipe and re-index graph partitions.
 
-### 2. Unique Token Claims for GraphRAG
+---
+
+## 2. Service-Specific Token Claims (`graphrag`)
+
 ```json
 {
-  "iss": "http://keycloak-keycloakx-http.auth.svc.cluster.local/auth/realms/sw-dev",
   "sub": "4a761e82-2d17-4861-8290-79883bfad211",
   "aud": ["graphrag-api"],
   "resource_access": {
@@ -66,6 +37,9 @@ flowchart LR
 }
 ```
 
-### 3. Service Account Integration (`graphrag-sa`)
-- Used for machine-to-machine interactions when GraphRAG queries database engines or Kafka topics.
-- Confidential client with credentials managed via ExternalSecrets.
+---
+
+## 3. Service-Local Integration Notes
+
+- **Backend (`graphrag-container`, Rust/Axum)**: Protects all BREAD REST (`/api/graphrag/v1/*`) and MCP (`/mcp`, `/api/graphrag/v1/mcp`) endpoints via the canonical JWKS Tower middleware (`aud` contains `graphrag-api`), accepting end-user tokens from `Mfe-shell` and M2M tokens from `angry-agent-sa` / `agent-as-data-sa`.
+- **Outbound M2M (`graphrag-sa`)**: Confidential client (credentials via ExternalSecrets) for outbound service-to-service interactions.
