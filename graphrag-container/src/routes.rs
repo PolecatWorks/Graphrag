@@ -144,8 +144,8 @@ pub struct OntologySubgraphQuery {
     pub max_edges: Option<usize>,
 }
 
-fn core_routes() -> Router<AppState> {
-    Router::new()
+fn core_routes(mcp_enabled: bool) -> Router<AppState> {
+    let router = Router::new()
         .route("/hello", get(hello))
         .route("/ingest", post(ingest_document))
         .route("/query", post(query_graphrag))
@@ -162,11 +162,20 @@ fn core_routes() -> Router<AppState> {
         .route("/ontology/steward-edge", post(steward_decide_edge))
         .route("/ontology/steward-field", post(steward_decide_field))
         .route("/ontology/join-path", post(find_ontology_join_path))
-        .route("/ontology/subgraph", get(export_ontology_subgraph))
-        .route("/mcp", post(handle_http_mcp))
+        .route("/ontology/subgraph", get(export_ontology_subgraph));
+
+    if mcp_enabled {
+        router.route("/mcp", post(handle_http_mcp))
+    } else {
+        router
+    }
 }
 
-pub fn create_router_with_prefix(api_prefix: &str) -> Router<AppState> {
+pub fn create_router_with_config(config: &crate::config::AppConfig) -> Router<AppState> {
+    create_router_with_prefix_and_mcp(&config.api_prefix, config.mcp.enabled)
+}
+
+pub fn create_router_with_prefix_and_mcp(api_prefix: &str, mcp_enabled: bool) -> Router<AppState> {
     let normalized = api_prefix.trim_end_matches('/');
     let prefix = if normalized.is_empty() {
         "/api/graphrag/v1"
@@ -174,19 +183,28 @@ pub fn create_router_with_prefix(api_prefix: &str) -> Router<AppState> {
         normalized
     };
 
-    let router = Router::new().nest(prefix, core_routes());
+    let router = Router::new().nest(prefix, core_routes(mcp_enabled));
 
     // Merge root routes for backward compatibility if prefix is not root
     let router = if prefix != "/" {
-        router.merge(core_routes())
+        router.merge(core_routes(mcp_enabled))
     } else {
         router
     };
 
-    // Ensure /api/v1/mcp backward compatibility
-    router
-        .route("/api/v1/mcp", post(handle_http_mcp))
-        .layer(TraceLayer::new_for_http())
+    // Ensure /api/v1/mcp backward compatibility when MCP is enabled
+    let router = if mcp_enabled {
+        router.route("/api/v1/mcp", post(handle_http_mcp))
+    } else {
+        router
+    };
+
+    router.layer(TraceLayer::new_for_http())
+}
+
+#[allow(dead_code)]
+pub fn create_router_with_prefix(api_prefix: &str) -> Router<AppState> {
+    create_router_with_prefix_and_mcp(api_prefix, true)
 }
 
 #[allow(dead_code)]
@@ -1460,5 +1478,72 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(bad_req.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_mcp_disabled_does_not_mount_mcp_routes() {
+        let mut state = mock_app_state();
+        Arc::get_mut(&mut state.config).unwrap().mcp.enabled = false;
+
+        for uri in ["/mcp", "/api/graphrag/v1/mcp", "/api/v1/mcp"] {
+            let app = create_router_with_config(&state.config).with_state(state.clone());
+            let resp = app
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(uri)
+                        .header("content-type", "application/json")
+                        .body(Body::from(r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                resp.status(),
+                StatusCode::NOT_FOUND,
+                "Expected 404 Not Found for {} when mcp.enabled = false",
+                uri
+            );
+        }
+
+        // Core non-MCP routes should still be mounted
+        let app = create_router_with_config(&state.config).with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/graphrag/v1/hello")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_mcp_notification_without_id_returns_204_no_content() {
+        let state = mock_app_state();
+
+        for body in [
+            r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            r#"{"jsonrpc":"2.0","method":"ping"}"#,
+        ] {
+            let app = create_router_with_config(&state.config).with_state(state.clone());
+            let resp = app
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/graphrag/v1/mcp")
+                        .header("content-type", "application/json")
+                        .body(Body::from(body))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+            let resp_bytes = resp.into_body().collect().await.unwrap().to_bytes();
+            assert!(resp_bytes.is_empty());
+        }
     }
 }
