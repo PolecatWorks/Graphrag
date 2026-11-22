@@ -29,7 +29,7 @@ MCP Protocol Handshake and Discovery
 
     # 4. Tools List
     ${tools}=    Mcp List Tools    endpoint=/api/v1/mcp
-    Length Should Be    ${tools}    27
+    Length Should Be    ${tools}    28
 
     # Verify key tool schemas exist
     ${names}=    Create List
@@ -46,6 +46,7 @@ MCP Protocol Handshake and Discovery
     List Should Contain Value    ${names}    ontology_sync_dataset
     List Should Contain Value    ${names}    ontology_steward_edge
     List Should Contain Value    ${names}    graphrag_find_join_path
+    List Should Contain Value    ${names}    graphrag_export_subgraph
     List Should Contain Value    ${names}    document_delete
     List Should Contain Value    ${names}    node_browse
     List Should Contain Value    ${names}    node_read

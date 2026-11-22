@@ -2,6 +2,7 @@ use crate::db::DatabaseConfig;
 use crate::llm_tools::LlmConfig;
 use crate::logging::{LoggingConfig, LoggingError};
 use crate::mcp::{McpConfig, McpError};
+use crate::ontology::{OntologyConfig, OntologyError};
 use figment::{
     Figment,
     providers::{Env, Format, Yaml},
@@ -26,6 +27,8 @@ pub enum ConfigError {
     Mcp(#[from] McpError),
     #[error(transparent)]
     Logging(#[from] LoggingError),
+    #[error(transparent)]
+    Ontology(#[from] OntologyError),
 }
 
 fn default_api_prefix() -> String {
@@ -46,6 +49,8 @@ pub struct AppConfig {
     pub mcp: McpConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub ontology: OntologyConfig,
 }
 
 impl AppConfig {
@@ -76,6 +81,7 @@ impl AppConfig {
         self.llm.validate()?;
         self.mcp.validate()?;
         self.logging.validate()?;
+        self.ontology.validate()?;
 
         if self.server_port == 0 {
             return Err(ConfigError::ZeroServerPort);
@@ -128,6 +134,7 @@ mod tests {
             },
             mcp: McpConfig::default(),
             logging: LoggingConfig::default(),
+            ontology: OntologyConfig::default(),
         }
     }
 

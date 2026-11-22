@@ -40,6 +40,8 @@ pub enum GraphRagError {
     EmptyNodeId,
     #[error("predicate must not be empty")]
     EmptyPredicate,
+    #[error("invalid ontology subgraph query: {0}")]
+    InvalidSubgraphQuery(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

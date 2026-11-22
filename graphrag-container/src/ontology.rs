@@ -1,15 +1,162 @@
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use rmcp::schemars;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
+use thiserror::Error;
 use tracing::warn;
 
 use crate::graph_rag::{
     GraphRagError, GraphStore, GraphTuple, KnowledgeObject, compute_embedding_64d,
     normalize_entity_id,
 };
+
+#[derive(Debug, Error)]
+pub enum OntologyError {
+    #[error("ontology.subgraph.default_hops must be between 1 and 5, got {0}")]
+    InvalidDefaultHops(u8),
+    #[error("ontology.subgraph.max_hops ({max}) must be >= default_hops ({default}) and <= 8")]
+    InvalidMaxHops { default: u8, max: u8 },
+    #[error("ontology.subgraph.default_max_nodes must be between 10 and 5000, got {0}")]
+    InvalidMaxNodes(usize),
+    #[error("ontology.subgraph.default_max_edges must be between 10 and 20000, got {0}")]
+    InvalidMaxEdges(usize),
+}
+
+fn default_subgraph_hops() -> u8 {
+    2
+}
+
+fn default_subgraph_max_hops() -> u8 {
+    5
+}
+
+fn default_subgraph_max_nodes() -> usize {
+    250
+}
+
+fn default_subgraph_max_edges() -> usize {
+    500
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct OntologySubgraphConfig {
+    #[serde(default = "default_subgraph_hops")]
+    pub default_hops: u8,
+    #[serde(default = "default_subgraph_max_hops")]
+    pub max_hops: u8,
+    #[serde(default = "default_subgraph_max_nodes")]
+    pub default_max_nodes: usize,
+    #[serde(default = "default_subgraph_max_edges")]
+    pub default_max_edges: usize,
+}
+
+impl Default for OntologySubgraphConfig {
+    fn default() -> Self {
+        Self {
+            default_hops: default_subgraph_hops(),
+            max_hops: default_subgraph_max_hops(),
+            default_max_nodes: default_subgraph_max_nodes(),
+            default_max_edges: default_subgraph_max_edges(),
+        }
+    }
+}
+
+impl OntologySubgraphConfig {
+    pub fn validate(&self) -> Result<(), OntologyError> {
+        if self.default_hops == 0 || self.default_hops > 5 {
+            return Err(OntologyError::InvalidDefaultHops(self.default_hops));
+        }
+        if self.max_hops < self.default_hops || self.max_hops > 8 {
+            return Err(OntologyError::InvalidMaxHops {
+                default: self.default_hops,
+                max: self.max_hops,
+            });
+        }
+        if self.default_max_nodes < 10 || self.default_max_nodes > 5000 {
+            return Err(OntologyError::InvalidMaxNodes(self.default_max_nodes));
+        }
+        if self.default_max_edges < 10 || self.default_max_edges > 20000 {
+            return Err(OntologyError::InvalidMaxEdges(self.default_max_edges));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct OntologyConfig {
+    #[serde(default)]
+    pub subgraph: OntologySubgraphConfig,
+}
+
+impl OntologyConfig {
+    pub fn validate(&self) -> Result<(), OntologyError> {
+        self.subgraph.validate()
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+pub struct OntologySubgraphRequest {
+    #[serde(default)]
+    pub focus_node_id: Option<String>,
+    #[serde(default)]
+    pub hops: Option<u8>,
+    #[serde(default)]
+    pub layers: Option<Vec<u8>>,
+    #[serde(default)]
+    pub dataset_ids: Option<Vec<String>>,
+    #[serde(default)]
+    pub epistemic_status: Option<String>,
+    #[serde(default)]
+    pub include_forbidden: Option<bool>,
+    #[serde(default)]
+    pub max_nodes: Option<usize>,
+    #[serde(default)]
+    pub max_edges: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+pub struct OntologySubgraphNode {
+    pub id: String,
+    pub label: String,
+    pub layer: u8,
+    pub description: String,
+    pub epistemic_status: String,
+    pub confidence: f64,
+    pub verified_by: Option<String>,
+    pub properties: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+pub struct OntologySubgraphEdge {
+    pub source_id: String,
+    pub predicate: String,
+    pub target_id: String,
+    pub epistemic_status: String,
+    pub confidence: f64,
+    pub derived: bool,
+    pub properties: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+pub struct OntologySubgraphCommunity {
+    pub id: String,
+    pub label: String,
+    pub layer: u8,
+    pub member_node_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+pub struct OntologySubgraphResponse {
+    pub nodes: Vec<OntologySubgraphNode>,
+    pub edges: Vec<OntologySubgraphEdge>,
+    pub communities: Vec<OntologySubgraphCommunity>,
+    pub truncated: bool,
+    pub total_matching_nodes: usize,
+    pub total_matching_edges: usize,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 pub struct OntologyElementMeta {
@@ -1154,6 +1301,350 @@ impl GraphStore {
             statistical_profile: profile,
         })
     }
+
+    pub async fn export_ontology_subgraph(
+        &self,
+        _pool: &PgPool,
+        config: &OntologySubgraphConfig,
+        req: OntologySubgraphRequest,
+    ) -> Result<OntologySubgraphResponse, GraphRagError> {
+        let hops = req.hops.unwrap_or(config.default_hops);
+        if hops == 0 || hops > config.max_hops {
+            return Err(GraphRagError::InvalidSubgraphQuery(format!(
+                "hops must be between 1 and {}, got {}",
+                config.max_hops, hops
+            )));
+        }
+
+        if let Some(ref layers) = req.layers {
+            for &layer in layers {
+                if layer > 2 {
+                    return Err(GraphRagError::InvalidSubgraphQuery(format!(
+                        "layer must be 0, 1, or 2; got {}",
+                        layer
+                    )));
+                }
+            }
+        }
+
+        let effective_max_nodes = match req.max_nodes {
+            Some(0) => {
+                return Err(GraphRagError::InvalidSubgraphQuery(
+                    "max_nodes must be greater than 0".to_string(),
+                ));
+            }
+            Some(n) => n.min(config.default_max_nodes),
+            None => config.default_max_nodes,
+        };
+
+        let effective_max_edges = match req.max_edges {
+            Some(0) => {
+                return Err(GraphRagError::InvalidSubgraphQuery(
+                    "max_edges must be greater than 0".to_string(),
+                ));
+            }
+            Some(n) => n.min(config.default_max_edges),
+            None => config.default_max_edges,
+        };
+
+        let include_forbidden = req.include_forbidden.unwrap_or(true);
+        let layer_filter: Option<HashSet<u8>> = req.layers.as_ref().map(|v| v.iter().copied().collect());
+        let status_filter: Option<String> = req
+            .epistemic_status
+            .as_deref()
+            .map(|s| s.trim().to_ascii_lowercase())
+            .filter(|s| !s.is_empty());
+
+        let guard = self.memory.read().await;
+
+        // Build undirected adjacency list for BFS (respecting include_forbidden and derived confounders)
+        let mut adj: HashMap<String, Vec<String>> = HashMap::new();
+        for edge in &guard.edges {
+            if !include_forbidden && edge.predicate == "FORBIDDEN_JOIN" {
+                continue;
+            }
+            adj.entry(edge.source.clone()).or_default().push(edge.target.clone());
+            adj.entry(edge.target.clone()).or_default().push(edge.source.clone());
+        }
+
+        // Also link derived confounder edges so confounders are reachable via BFS
+        let mut derived_confounder_edges: Vec<OntologySubgraphEdge> = Vec::new();
+        for (node_id, meta) in &guard.node_meta {
+            if let Some(confounders) = meta
+                .properties
+                .get("statistical_profile")
+                .and_then(|sp| sp.get("known_confounders"))
+                .and_then(|c| c.as_array())
+            {
+                for conf in confounders {
+                    if let Some(conf_raw) = conf.as_str()
+                        && let Some(target_id) =
+                            resolve_subgraph_node_id(conf_raw, &guard.nodes, &guard.node_meta)
+                    {
+                        adj.entry(node_id.clone()).or_default().push(target_id.clone());
+                        adj.entry(target_id.clone()).or_default().push(node_id.clone());
+                        let sp_status = meta
+                            .properties
+                            .get("statistical_profile")
+                            .and_then(|sp| sp.get("epistemic_status"))
+                            .and_then(|s| s.as_str())
+                            .unwrap_or(&meta.epistemic_status)
+                            .to_string();
+                        let sp_conf = meta
+                            .properties
+                            .get("statistical_profile")
+                            .and_then(|sp| sp.get("confidence"))
+                            .and_then(|c| c.as_f64())
+                            .unwrap_or(meta.confidence);
+                        derived_confounder_edges.push(OntologySubgraphEdge {
+                            source_id: node_id.clone(),
+                            predicate: "CONFOUNDED_BY".to_string(),
+                            target_id,
+                            epistemic_status: sp_status,
+                            confidence: sp_conf,
+                            derived: true,
+                            properties: json!({ "source": "statistical_profile.known_confounders" }),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Determine candidate node IDs via focus BFS, dataset scoping, or full graph
+        let candidate_ids: BTreeSet<String> = if let Some(ref raw_focus) = req.focus_node_id {
+            let focus_id = resolve_subgraph_node_id(raw_focus, &guard.nodes, &guard.node_meta)
+                .ok_or_else(|| GraphRagError::NodeNotFound(raw_focus.clone()))?;
+            bfs_neighborhood(&[focus_id], hops, &adj)
+        } else if let Some(ref ds_ids) = req.dataset_ids {
+            let mut seeds = Vec::new();
+            for ds in ds_ids {
+                if let Some(resolved) = resolve_subgraph_node_id(ds, &guard.nodes, &guard.node_meta) {
+                    seeds.push(resolved);
+                }
+            }
+            if seeds.is_empty() {
+                BTreeSet::new()
+            } else {
+                bfs_neighborhood(&seeds, hops, &adj)
+            }
+        } else {
+            guard.nodes.keys().cloned().collect()
+        };
+
+        // Materialize and filter nodes
+        let mut matched_nodes: Vec<OntologySubgraphNode> = Vec::new();
+        for node_id in &candidate_ids {
+            let Some(node) = guard.nodes.get(node_id) else {
+                continue;
+            };
+            let sem_layer = effective_semantic_layer(node);
+            if let Some(ref allowed_layers) = layer_filter
+                && !allowed_layers.contains(&sem_layer)
+            {
+                continue;
+            }
+            let meta = guard.node_meta.get(node_id).cloned().unwrap_or_default();
+            if let Some(ref expected_status) = status_filter
+                && meta.epistemic_status.to_ascii_lowercase() != *expected_status
+            {
+                continue;
+            }
+            matched_nodes.push(OntologySubgraphNode {
+                id: node.id.clone(),
+                label: node.label.clone(),
+                layer: sem_layer,
+                description: node.description.clone(),
+                epistemic_status: meta.epistemic_status,
+                confidence: meta.confidence,
+                verified_by: meta.verified_by,
+                properties: meta.properties,
+            });
+        }
+
+        // Deterministic sort: (layer DESC, epistemic_priority ASC, id ASC)
+        matched_nodes.sort_by(|a, b| {
+            (Reverse(a.layer), epistemic_priority(&a.epistemic_status), &a.id).cmp(&(
+                Reverse(b.layer),
+                epistemic_priority(&b.epistemic_status),
+                &b.id,
+            ))
+        });
+
+        let total_matching_nodes = matched_nodes.len();
+        let matched_node_set: HashSet<String> = matched_nodes.iter().map(|n| n.id.clone()).collect();
+
+        // Collect all edges between matched nodes (prior to truncation for total count)
+        let mut all_matching_edges: Vec<OntologySubgraphEdge> = Vec::new();
+        for edge in &guard.edges {
+            if !include_forbidden && edge.predicate == "FORBIDDEN_JOIN" {
+                continue;
+            }
+            if !matched_node_set.contains(&edge.source) || !matched_node_set.contains(&edge.target) {
+                continue;
+            }
+            let meta = guard
+                .edge_meta
+                .get(&(edge.source.clone(), edge.predicate.clone(), edge.target.clone()))
+                .cloned()
+                .unwrap_or_default();
+            if let Some(ref expected_status) = status_filter
+                && meta.epistemic_status.to_ascii_lowercase() != *expected_status
+            {
+                continue;
+            }
+            all_matching_edges.push(OntologySubgraphEdge {
+                source_id: edge.source.clone(),
+                predicate: edge.predicate.clone(),
+                target_id: edge.target.clone(),
+                epistemic_status: meta.epistemic_status,
+                confidence: meta.confidence,
+                derived: false,
+                properties: meta.properties,
+            });
+        }
+        for edge in derived_confounder_edges {
+            if matched_node_set.contains(&edge.source_id) && matched_node_set.contains(&edge.target_id) {
+                all_matching_edges.push(edge);
+            }
+        }
+        all_matching_edges.sort_by(|a, b| {
+            (&a.source_id, &a.predicate, &a.target_id).cmp(&(&b.source_id, &b.predicate, &b.target_id))
+        });
+        all_matching_edges.dedup_by(|a, b| {
+            a.source_id == b.source_id && a.predicate == b.predicate && a.target_id == b.target_id
+        });
+        let total_matching_edges = all_matching_edges.len();
+
+        // Apply node truncation and drop any edges whose endpoints were truncated (zero dangling edges)
+        let nodes: Vec<OntologySubgraphNode> = matched_nodes
+            .into_iter()
+            .take(effective_max_nodes)
+            .collect();
+        let kept_node_ids: HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+
+        let mut edges: Vec<OntologySubgraphEdge> = all_matching_edges
+            .into_iter()
+            .filter(|e| {
+                kept_node_ids.contains(e.source_id.as_str())
+                    && kept_node_ids.contains(e.target_id.as_str())
+            })
+            .collect();
+        edges.truncate(effective_max_edges);
+
+        // Collect Layer 2 CommunitySummary hulls whose members intersect kept nodes
+        let mut community_members: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for edge in &guard.edges {
+            if edge.predicate == "SUMMARIZES" && kept_node_ids.contains(edge.target.as_str()) {
+                community_members
+                    .entry(edge.source.clone())
+                    .or_default()
+                    .insert(edge.target.clone());
+            }
+        }
+        let mut communities: Vec<OntologySubgraphCommunity> = Vec::new();
+        for (comm_id, members) in community_members {
+            if let Some(comm_node) = guard.nodes.get(&comm_id) {
+                communities.push(OntologySubgraphCommunity {
+                    id: comm_node.id.clone(),
+                    label: comm_node.description.clone(),
+                    layer: effective_semantic_layer(comm_node),
+                    member_node_ids: members.into_iter().collect(),
+                });
+            }
+        }
+
+        let truncated = total_matching_nodes > nodes.len() || total_matching_edges > edges.len();
+
+        Ok(OntologySubgraphResponse {
+            nodes,
+            edges,
+            communities,
+            truncated,
+            total_matching_nodes,
+            total_matching_edges,
+        })
+    }
+}
+
+fn effective_semantic_layer(node: &KnowledgeObject) -> u8 {
+    match node.label.as_str() {
+        "Field" => 0,
+        "Dataset" => 1,
+        "BusinessConcept" | "BusinessMetric" | "CommunitySummary" => 2,
+        _ => node.layer.clamp(0, 2) as u8,
+    }
+}
+
+fn epistemic_priority(status: &str) -> u8 {
+    match status {
+        "verified" => 0,
+        "drifted" => 1,
+        "empirically_tested" => 2,
+        "pending_review" => 3,
+        "hypothesized" => 4,
+        "discovered" => 5,
+        "rejected" => 6,
+        _ => 7,
+    }
+}
+
+fn resolve_subgraph_node_id(
+    raw: &str,
+    nodes: &BTreeMap<String, KnowledgeObject>,
+    node_meta: &BTreeMap<String, OntologyElementMeta>,
+) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if nodes.contains_key(trimmed) {
+        return Some(trimmed.to_string());
+    }
+    let normalized = normalize_entity_id(trimmed);
+    if nodes.contains_key(&normalized) {
+        return Some(normalized);
+    }
+    if let Some((ds, fl)) = trimmed.split_once('.') {
+        let field_id = canonical_field_node_id(ds, fl);
+        if nodes.contains_key(&field_id) {
+            return Some(field_id);
+        }
+    }
+    for (id, meta) in node_meta {
+        if meta
+            .properties
+            .get("canonical_id")
+            .and_then(|v| v.as_str())
+            .map(|c| c.eq_ignore_ascii_case(trimmed))
+            .unwrap_or(false)
+        {
+            return Some(id.clone());
+        }
+    }
+    None
+}
+
+fn bfs_neighborhood(seeds: &[String], hops: u8, adj: &HashMap<String, Vec<String>>) -> BTreeSet<String> {
+    let mut visited: BTreeSet<String> = BTreeSet::new();
+    let mut queue: VecDeque<(String, u8)> = VecDeque::new();
+    for seed in seeds {
+        if visited.insert(seed.clone()) {
+            queue.push_back((seed.clone(), 0));
+        }
+    }
+    while let Some((curr, dist)) = queue.pop_front() {
+        if dist >= hops {
+            continue;
+        }
+        if let Some(neighbors) = adj.get(&curr) {
+            for next in neighbors {
+                if visited.insert(next.clone()) {
+                    queue.push_back((next.clone(), dist + 1));
+                }
+            }
+        }
+    }
+    visited
 }
 
 #[cfg(test)]
@@ -1863,5 +2354,371 @@ mod tests {
         assert_eq!(caveat.known_confounders, vec!["customers.segment".to_string()]);
         assert_eq!(caveat.epistemic_status, "verified");
         assert_eq!(caveat.verified_by.as_deref(), Some("steward_alice"));
+    }
+
+    #[test]
+    fn test_ontology_subgraph_config_validation_rejects_invalid_bounds() {
+        assert!(OntologySubgraphConfig::default().validate().is_ok());
+
+        let zero_hops = OntologySubgraphConfig {
+            default_hops: 0,
+            ..Default::default()
+        };
+        assert!(matches!(
+            zero_hops.validate(),
+            Err(OntologyError::InvalidDefaultHops(0))
+        ));
+
+        let bad_max_hops = OntologySubgraphConfig {
+            default_hops: 3,
+            max_hops: 2,
+            ..Default::default()
+        };
+        assert!(matches!(
+            bad_max_hops.validate(),
+            Err(OntologyError::InvalidMaxHops { default: 3, max: 2 })
+        ));
+
+        let zero_nodes = OntologySubgraphConfig {
+            default_max_nodes: 5,
+            ..Default::default()
+        };
+        assert!(matches!(
+            zero_nodes.validate(),
+            Err(OntologyError::InvalidMaxNodes(5))
+        ));
+
+        let zero_edges = OntologySubgraphConfig {
+            default_max_edges: 0,
+            ..Default::default()
+        };
+        assert!(matches!(
+            zero_edges.validate(),
+            Err(OntologyError::InvalidMaxEdges(0))
+        ));
+    }
+
+    async fn seed_multilayer_ontology(store: &GraphStore, pool: &PgPool) {
+        // Sync crm_customers + sales_orders
+        store
+            .sync_dataset_ontology(
+                pool,
+                OntologySyncDatasetRequest {
+                    dataset_name: "crm_customers".to_string(),
+                    description: Some("CRM Customers".to_string()),
+                    row_count: 100,
+                    schema_fingerprint_sha256: Some("sha_crm".to_string()),
+                    epistemic_status: "verified".to_string(),
+                    fields: vec![
+                        OntologyFieldInput {
+                            field_name: "party_uuid".to_string(),
+                            arrow_data_type: "Utf8".to_string(),
+                            description: Some("Primary Party UUID".to_string()),
+                            null_ratio: 0.0,
+                            uniqueness_ratio: 1.0,
+                            inferred_semantic_domain: "identifier".to_string(),
+                            epistemic_status: "verified".to_string(),
+                            statistical_profile: None,
+                        },
+                        OntologyFieldInput {
+                            field_name: "segment".to_string(),
+                            arrow_data_type: "Utf8".to_string(),
+                            description: Some("Customer Segment".to_string()),
+                            null_ratio: 0.0,
+                            uniqueness_ratio: 0.02,
+                            inferred_semantic_domain: "categorical".to_string(),
+                            epistemic_status: "verified".to_string(),
+                            statistical_profile: None,
+                        },
+                    ],
+                    join_edges: vec![],
+                },
+            )
+            .await
+            .expect("sync crm");
+
+        store
+            .sync_dataset_ontology(
+                pool,
+                OntologySyncDatasetRequest {
+                    dataset_name: "sales_orders".to_string(),
+                    description: Some("Sales Orders".to_string()),
+                    row_count: 500,
+                    schema_fingerprint_sha256: Some("sha_orders".to_string()),
+                    epistemic_status: "verified".to_string(),
+                    fields: vec![
+                        OntologyFieldInput {
+                            field_name: "cust_ref_key".to_string(),
+                            arrow_data_type: "Utf8".to_string(),
+                            description: Some("Customer FK".to_string()),
+                            null_ratio: 0.0,
+                            uniqueness_ratio: 0.2,
+                            inferred_semantic_domain: "identifier".to_string(),
+                            epistemic_status: "verified".to_string(),
+                            statistical_profile: None,
+                        },
+                        OntologyFieldInput {
+                            field_name: "amount_usd".to_string(),
+                            arrow_data_type: "Float64".to_string(),
+                            description: Some("Order Amount USD".to_string()),
+                            null_ratio: 0.0,
+                            uniqueness_ratio: 0.9,
+                            inferred_semantic_domain: "currency".to_string(),
+                            epistemic_status: "drifted".to_string(),
+                            statistical_profile: Some(StatisticalProfile {
+                                distribution_family: Some("log_normal_heavy_tailed".to_string()),
+                                is_heavy_tailed: true,
+                                skewness: Some(4.5),
+                                kurtosis: Some(25.0),
+                                seasonality_period: None,
+                                recommended_test_family: Some("mann_whitney_u".to_string()),
+                                known_confounders: vec!["crm_customers.segment".to_string()],
+                                last_diagnosed_run_id: Some("run-1".to_string()),
+                                epistemic_status: "empirically_tested".to_string(),
+                                confidence: 0.93,
+                                verified_by: None,
+                                steward_notes: None,
+                                previous_verified_profile: None,
+                            }),
+                        },
+                    ],
+                    join_edges: vec![OntologyJoinEdgeInput {
+                        left_dataset: "sales_orders".to_string(),
+                        left_field: "cust_ref_key".to_string(),
+                        right_dataset: "crm_customers".to_string(),
+                        right_field: "party_uuid".to_string(),
+                        observed_cardinality: "N:1".to_string(),
+                        inclusion_ratio: 0.97,
+                        row_multiplication_factor: 1.0,
+                        fan_out_risk: false,
+                        homonym_trap_warning: false,
+                        confidence: 0.97,
+                        epistemic_status: "empirically_tested".to_string(),
+                    }],
+                },
+            )
+            .await
+            .expect("sync orders");
+
+        // Add Layer 2 BusinessMetric, CommunitySummary, and a FORBIDDEN_JOIN edge
+        let mut guard = store.memory.write().await;
+        guard.nodes.insert(
+            "net_revenue".to_string(),
+            KnowledgeObject {
+                id: "net_revenue".to_string(),
+                label: "BusinessMetric".to_string(),
+                description: "Net revenue in USD".to_string(),
+                layer: 2,
+                document_id: None,
+                embedding: vec![0.0; 64],
+            },
+        );
+        guard.node_meta.insert(
+            "net_revenue".to_string(),
+            OntologyElementMeta {
+                epistemic_status: "verified".to_string(),
+                confidence: 1.0,
+                verified_by: Some("steward_alice".to_string()),
+                properties: json!({ "formula": "SUM(amount_usd)" }),
+            },
+        );
+        guard.edges.insert(GraphTuple {
+            source: "net_revenue".to_string(),
+            predicate: "COMPUTED_FROM".to_string(),
+            target: "sales_orders".to_string(),
+            document_id: None,
+        });
+        guard.nodes.insert(
+            "comm_revenue".to_string(),
+            KnowledgeObject {
+                id: "comm_revenue".to_string(),
+                label: "CommunitySummary".to_string(),
+                description: "Revenue & Billing".to_string(),
+                layer: 2,
+                document_id: None,
+                embedding: vec![0.0; 64],
+            },
+        );
+        guard.edges.insert(GraphTuple {
+            source: "comm_revenue".to_string(),
+            predicate: "SUMMARIZES".to_string(),
+            target: "sales_orders".to_string(),
+            document_id: None,
+        });
+        guard.edges.insert(GraphTuple {
+            source: "sales_orders_amount_usd".to_string(),
+            predicate: "FORBIDDEN_JOIN".to_string(),
+            target: "crm_customers_party_uuid".to_string(),
+            document_id: None,
+        });
+        guard.edge_meta.insert(
+            (
+                "sales_orders_amount_usd".to_string(),
+                "FORBIDDEN_JOIN".to_string(),
+                "crm_customers_party_uuid".to_string(),
+            ),
+            OntologyElementMeta {
+                epistemic_status: "rejected".to_string(),
+                confidence: 1.0,
+                verified_by: Some("steward_alice".to_string()),
+                properties: json!({ "rejection_reason": "Incompatible domains" }),
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn test_export_subgraph_ego_network_respects_hops_and_layers() {
+        let store = GraphStore::default();
+        let pool = mock_pool();
+        seed_multilayer_ontology(&store, &pool).await;
+        let cfg = OntologySubgraphConfig::default();
+
+        // 1-hop from net_revenue reaches sales_orders (Layer 1) but not sales_orders_amount_usd (2 hops)
+        let hop1 = store
+            .export_ontology_subgraph(
+                &pool,
+                &cfg,
+                OntologySubgraphRequest {
+                    focus_node_id: Some("net_revenue".to_string()),
+                    hops: Some(1),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("hop1");
+        let hop1_ids: HashSet<&str> = hop1.nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(hop1_ids.contains("net_revenue"));
+        assert!(hop1_ids.contains("sales_orders"));
+        assert!(!hop1_ids.contains("sales_orders_amount_usd"));
+        assert_eq!(hop1.communities.len(), 1);
+        assert_eq!(hop1.communities[0].id, "comm_revenue");
+
+        // 2-hop with layers=[1, 2] excludes Layer 0 fields
+        let hop2_l12 = store
+            .export_ontology_subgraph(
+                &pool,
+                &cfg,
+                OntologySubgraphRequest {
+                    focus_node_id: Some("net_revenue".to_string()),
+                    hops: Some(2),
+                    layers: Some(vec![1, 2]),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("hop2 layers 1,2");
+        assert!(hop2_l12.nodes.iter().all(|n| n.layer == 1 || n.layer == 2));
+        assert!(hop2_l12.nodes.iter().any(|n| n.id == "net_revenue" && n.layer == 2));
+        assert!(hop2_l12.nodes.iter().any(|n| n.id == "sales_orders" && n.layer == 1));
+    }
+
+    #[tokio::test]
+    async fn test_export_subgraph_includes_forbidden_join_and_derived_confounders() {
+        let store = GraphStore::default();
+        let pool = mock_pool();
+        seed_multilayer_ontology(&store, &pool).await;
+        let cfg = OntologySubgraphConfig::default();
+
+        let with_forbidden = store
+            .export_ontology_subgraph(
+                &pool,
+                &cfg,
+                OntologySubgraphRequest {
+                    include_forbidden: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("with forbidden");
+
+        assert!(
+            with_forbidden
+                .edges
+                .iter()
+                .any(|e| e.predicate == "FORBIDDEN_JOIN"),
+            "FORBIDDEN_JOIN should be present when include_forbidden=true"
+        );
+        assert!(
+            with_forbidden.edges.iter().any(|e| {
+                e.predicate == "CONFOUNDED_BY"
+                    && e.derived
+                    && e.source_id == "sales_orders_amount_usd"
+                    && e.target_id == "crm_customers_segment"
+            }),
+            "derived CONFOUNDED_BY edge should be materialized from known_confounders"
+        );
+
+        let without_forbidden = store
+            .export_ontology_subgraph(
+                &pool,
+                &cfg,
+                OntologySubgraphRequest {
+                    include_forbidden: Some(false),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("without forbidden");
+        assert!(
+            !without_forbidden
+                .edges
+                .iter()
+                .any(|e| e.predicate == "FORBIDDEN_JOIN"),
+            "FORBIDDEN_JOIN must be excluded when include_forbidden=false"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_export_subgraph_enforces_max_nodes_truncation_without_dangling_edges() {
+        let store = GraphStore::default();
+        let pool = mock_pool();
+        seed_multilayer_ontology(&store, &pool).await;
+        let cfg = OntologySubgraphConfig::default();
+
+        let resp = store
+            .export_ontology_subgraph(
+                &pool,
+                &cfg,
+                OntologySubgraphRequest {
+                    max_nodes: Some(3),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("truncated export");
+
+        assert!(resp.truncated);
+        assert_eq!(resp.nodes.len(), 3);
+        assert!(resp.total_matching_nodes > 3);
+
+        let kept: HashSet<&str> = resp.nodes.iter().map(|n| n.id.as_str()).collect();
+        for edge in &resp.edges {
+            assert!(
+                kept.contains(edge.source_id.as_str()) && kept.contains(edge.target_id.as_str()),
+                "dangling edge detected after truncation: {:?}",
+                edge
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_export_subgraph_returns_not_found_for_unknown_focus_node() {
+        let store = GraphStore::default();
+        let pool = mock_pool();
+        let cfg = OntologySubgraphConfig::default();
+
+        let err = store
+            .export_ontology_subgraph(
+                &pool,
+                &cfg,
+                OntologySubgraphRequest {
+                    focus_node_id: Some("does_not_exist".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("unknown focus node must fail");
+
+        assert!(matches!(err, GraphRagError::NodeNotFound(_)));
     }
 }
