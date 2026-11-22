@@ -61,7 +61,7 @@ async fn run() -> Result<(), BootError> {
     let ct = CancellationToken::new();
 
     let config =
-        AppConfig::load(cli.config.as_deref(), cli.secrets_dir.as_deref()).map_err(Box::new)?;
+        AppConfig::load(&cli.config, cli.secrets_dir.as_deref()).map_err(Box::new)?;
     config.validate()?;
 
     let filter_directive = config.logging.filter_directive();

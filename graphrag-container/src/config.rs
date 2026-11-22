@@ -10,11 +10,14 @@ use figment::{
 use figment_file_provider_adapter::FileAdapter;
 use hams::hams::config::HamsConfig;
 use serde::Deserialize;
+use std::net::IpAddr;
 use std::path::Path;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
+    #[error("server_host must be a valid IP address: {0}")]
+    InvalidServerHost(String),
     #[error("server_port must be a valid port number")]
     ZeroServerPort,
     #[error("api_prefix must start with '/' and not end with '/': {0}")]
@@ -31,40 +34,29 @@ pub enum ConfigError {
     Ontology(#[from] OntologyError),
 }
 
-fn default_api_prefix() -> String {
-    "/api/graphrag/v1".to_string()
-}
-
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
-    #[serde(default = "default_api_prefix")]
     pub api_prefix: String,
     pub database: DatabaseConfig,
     pub server_host: String,
     pub server_port: u16,
-    #[serde(default)]
     pub hams: HamsConfig,
     pub llm: LlmConfig,
-    #[serde(default)]
     pub mcp: McpConfig,
-    #[serde(default)]
     pub logging: LoggingConfig,
-    #[serde(default)]
     pub ontology: OntologyConfig,
 }
 
 impl AppConfig {
     #[allow(clippy::result_large_err)]
-    pub fn load(config_path: Option<&str>, secrets_dir: Option<&str>) -> Result<Self, figment::Error> {
+    pub fn load(config_path: &Path, secrets_dir: Option<&Path>) -> Result<Self, figment::Error> {
         let mut figment = Figment::new();
 
-        if let Some(path) = config_path {
-            if let Some(s_dir) = secrets_dir {
-                let adapter = FileAdapter::wrap(Yaml::file(path)).relative_to_dir(Path::new(s_dir));
-                figment = figment.merge(adapter);
-            } else {
-                figment = figment.merge(Yaml::file(path));
-            }
+        if let Some(s_dir) = secrets_dir {
+            let adapter = FileAdapter::wrap(Yaml::file(config_path)).relative_to_dir(s_dir);
+            figment = figment.merge(adapter);
+        } else {
+            figment = figment.merge(Yaml::file(config_path));
         }
 
         figment = figment.merge(Env::prefixed("GRAPHRAG_BE__").split("__"));
@@ -73,8 +65,14 @@ impl AppConfig {
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {
-        if !self.api_prefix.starts_with('/') || (self.api_prefix.len() > 1 && self.api_prefix.ends_with('/')) {
+        if !self.api_prefix.starts_with('/')
+            || (self.api_prefix.len() > 1 && self.api_prefix.ends_with('/'))
+        {
             return Err(ConfigError::InvalidApiPrefix(self.api_prefix.clone()));
+        }
+
+        if self.server_host.parse::<IpAddr>().is_err() {
+            return Err(ConfigError::InvalidServerHost(self.server_host.clone()));
         }
 
         self.database.validate()?;
@@ -98,8 +96,28 @@ mod tests {
     use std::io::Write;
     use std::sync::Mutex;
     use tempfile::NamedTempFile;
+    use url::Url;
 
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+    const BASE_YAML_SECTIONS: &str = r#"api_prefix: "/api/graphrag/v1"
+hams:
+  address: "127.0.0.1:8079"
+  name: "graphrag"
+  version: "0.1.0"
+  logging: true
+mcp:
+  enabled: true
+  server_name: "graphrag-mcp"
+  instructions: "GraphRAG-RS Model Context Protocol Server for knowledge graph ingestion, hybrid RAG querying, and BREAD data management."
+logging:
+  level: "info"
+ontology:
+  subgraph:
+    default_hops: 2
+    max_hops: 5
+    default_max_nodes: 250
+    default_max_edges: 500"#;
 
     fn clear_env() {
         unsafe {
@@ -116,7 +134,7 @@ mod tests {
 
     fn valid_app_config() -> AppConfig {
         AppConfig {
-            api_prefix: default_api_prefix(),
+            api_prefix: "/api/graphrag/v1".to_string(),
             database: DatabaseConfig {
                 url: crate::db::DatabaseUrlConfig::new("postgres://test"),
                 pool_size: 10,
@@ -127,7 +145,7 @@ mod tests {
             hams: HamsConfig::default(),
             llm: LlmConfig {
                 provider: "ollama".to_string(),
-                base_url: "http://localhost:11434/v1".to_string(),
+                base_url: Url::parse("http://localhost:11434/v1").unwrap(),
                 api_key: None,
                 model: "llama3".to_string(),
                 timeout_seconds: 60,
@@ -144,18 +162,36 @@ mod tests {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(
             file,
-            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60"
+            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60\n{BASE_YAML_SECTIONS}"
         )
         .unwrap();
 
         clear_env();
 
-        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
-        assert_eq!(config.database.url.connection_url(), "postgres://yaml");
+        let config = AppConfig::load(file.path(), None).unwrap();
+        assert_eq!(
+            config.database.url.connection_url().unwrap().as_str(),
+            "postgres://yaml"
+        );
         assert_eq!(config.database.pool_size, 10);
         assert_eq!(config.database.timeout_seconds, 30);
         assert_eq!(config.server_port, 8081);
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_repository_config_files_load_and_validate() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        clear_env();
+
+        for rel_path in ["config.yaml", "../charts/graphrag/configs/config.yaml"] {
+            let path = Path::new(rel_path);
+            let config = AppConfig::load(path, None)
+                .unwrap_or_else(|e| panic!("Failed to load {rel_path}: {e}"));
+            config
+                .validate()
+                .unwrap_or_else(|e| panic!("Failed to validate {rel_path}: {e}"));
+        }
     }
 
     #[test]
@@ -171,20 +207,16 @@ mod tests {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(
             file,
-            "database:\n  url:\n    url: postgres://localhost:5432/graphrag\n    username_file: persistence/db/connection/username\n    password_file: persistence/db/connection/password\n  pool_size: 5\n  timeout_seconds: 10\nserver_host: 127.0.0.1\nserver_port: 8080\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60"
+            "database:\n  url:\n    url: postgres://localhost:5432/graphrag\n    username_file: persistence/db/connection/username\n    password_file: persistence/db/connection/password\n  pool_size: 5\n  timeout_seconds: 10\nserver_host: 127.0.0.1\nserver_port: 8080\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60\n{BASE_YAML_SECTIONS}"
         )
         .unwrap();
 
         clear_env();
 
-        let config = AppConfig::load(
-            Some(file.path().to_str().unwrap()),
-            Some(secrets_dir.path().to_str().unwrap()),
-        )
-        .unwrap();
+        let config = AppConfig::load(file.path(), Some(secrets_dir.path())).unwrap();
 
         assert_eq!(
-            config.database.url.connection_url(),
+            config.database.url.connection_url().unwrap().as_str(),
             "postgres://testuser:testpass@localhost:5432/graphrag"
         );
         assert_eq!(config.database.pool_size, 5);
@@ -197,7 +229,7 @@ mod tests {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(
             file,
-            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60"
+            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60\n{BASE_YAML_SECTIONS}"
         )
         .unwrap();
 
@@ -210,11 +242,14 @@ mod tests {
             env::set_var("GRAPHRAG_BE__SERVER_PORT", "9090");
         }
 
-        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
+        let config = AppConfig::load(file.path(), None).unwrap();
 
         clear_env();
 
-        assert_eq!(config.database.url.connection_url(), "postgres://env");
+        assert_eq!(
+            config.database.url.connection_url().unwrap().as_str(),
+            "postgres://env"
+        );
         assert_eq!(config.database.pool_size, 20);
         assert_eq!(config.database.timeout_seconds, 60);
         assert_eq!(config.server_port, 9090);
@@ -226,7 +261,7 @@ mod tests {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(
             file,
-            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60\nlogging:\n  level: info"
+            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60\n{BASE_YAML_SECTIONS}"
         )
         .unwrap();
 
@@ -237,7 +272,7 @@ mod tests {
             env::set_var("GRAPHRAG_BE__LOGGING__FILTER", "debug,app=trace");
         }
 
-        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
+        let config = AppConfig::load(file.path(), None).unwrap();
 
         clear_env();
 
@@ -248,17 +283,8 @@ mod tests {
 
     #[test]
     fn test_validate_delegates_to_logging_config() {
-        let _lock = ENV_MUTEX.lock().unwrap();
-        let mut file = NamedTempFile::new().unwrap();
-        writeln!(
-            file,
-            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60\nlogging:\n  level: invalid_log_level"
-        )
-        .unwrap();
-
-        clear_env();
-
-        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
+        let mut config = valid_app_config();
+        config.logging.level = "invalid_log_level".to_string();
         let res = config.validate();
         assert!(res.is_err());
         assert!(matches!(res.unwrap_err(), ConfigError::Logging(_)));
@@ -270,6 +296,15 @@ mod tests {
         config.mcp.server_name = "".to_string();
         let res = config.validate();
         assert!(matches!(res, Err(ConfigError::Mcp(McpError::EmptyServerName))));
+    }
+
+    #[test]
+    fn test_validate_invalid_server_host() {
+        let mut config = valid_app_config();
+        config.server_host = "not-an-ip".to_string();
+
+        let result = config.validate();
+        assert!(matches!(result, Err(ConfigError::InvalidServerHost(_))));
     }
 
     #[test]
@@ -318,13 +353,6 @@ mod tests {
     }
 
     #[test]
-    fn test_default_api_prefix() {
-        let config = valid_app_config();
-        assert_eq!(config.api_prefix, "/api/graphrag/v1");
-        assert!(config.validate().is_ok());
-    }
-
-    #[test]
     fn test_api_prefix_validation() {
         let mut config = valid_app_config();
         config.api_prefix = "api/graphrag/v1".to_string();
@@ -348,7 +376,7 @@ mod tests {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(
             file,
-            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60"
+            "database:\n  url: postgres://yaml\n  pool_size: 10\n  timeout_seconds: 30\nserver_host: 127.0.0.1\nserver_port: 8081\nllm:\n  provider: ollama\n  base_url: http://localhost:11434/v1\n  model: llama3\n  timeout_seconds: 60\n{BASE_YAML_SECTIONS}"
         )
         .unwrap();
 
@@ -358,7 +386,7 @@ mod tests {
             env::set_var("GRAPHRAG_BE__API_PREFIX", "/api/custom/v1");
         }
 
-        let config = AppConfig::load(Some(file.path().to_str().unwrap()), None).unwrap();
+        let config = AppConfig::load(file.path(), None).unwrap();
 
         clear_env();
 

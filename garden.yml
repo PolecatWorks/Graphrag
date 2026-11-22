@@ -128,8 +128,35 @@ spec:
     imagePullSecrets:
       - name: ghcr-secret
     config:
+      api_prefix: "/api/graphrag/v1"
       database:
         url: "postgres://postgres:postgres@postgres-test:5432/graphrag"
+        pool_size: 10
+        timeout_seconds: 30
+      server_host: "0.0.0.0"
+      server_port: 8080
+      hams:
+        address: "0.0.0.0:8079"
+        name: "graphrag"
+        version: "0.1.0"
+        logging: true
+      llm:
+        provider: "ollama"
+        base_url: "http://ollama.k8s:80/v1"
+        model: "llama3.1:8b"
+        timeout_seconds: 60
+      mcp:
+        enabled: true
+        server_name: "graphrag-mcp"
+        instructions: "GraphRAG-RS Model Context Protocol Server for knowledge graph ingestion, hybrid RAG querying, and BREAD data management."
+      logging:
+        level: "info"
+      ontology:
+        subgraph:
+          default_hops: 2
+          max_hops: 5
+          default_max_nodes: 250
+          default_max_edges: 500
 
 ---
 kind: Build

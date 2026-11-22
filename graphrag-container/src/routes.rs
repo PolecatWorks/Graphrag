@@ -178,18 +178,17 @@ pub fn create_router_with_config(config: &crate::config::AppConfig) -> Router<Ap
 pub fn create_router_with_prefix_and_mcp(api_prefix: &str, mcp_enabled: bool) -> Router<AppState> {
     let normalized = api_prefix.trim_end_matches('/');
     let prefix = if normalized.is_empty() {
-        "/api/graphrag/v1"
+        "/"
     } else {
         normalized
     };
 
-    let router = Router::new().nest(prefix, core_routes(mcp_enabled));
-
-    // Merge root routes for backward compatibility if prefix is not root
     let router = if prefix != "/" {
-        router.merge(core_routes(mcp_enabled))
+        Router::new()
+            .nest(prefix, core_routes(mcp_enabled))
+            .merge(core_routes(mcp_enabled))
     } else {
-        router
+        core_routes(mcp_enabled)
     };
 
     // Ensure /api/v1/mcp backward compatibility when MCP is enabled
@@ -604,7 +603,7 @@ mod tests {
             hams: hams::hams::config::HamsConfig::default(),
             llm: LlmConfig {
                 provider: "ollama".to_string(),
-                base_url: "http://127.0.0.1:1/v1".to_string(),
+                base_url: url::Url::parse("http://127.0.0.1:1/v1").unwrap(),
                 api_key: None,
                 model: "llama3".to_string(),
                 timeout_seconds: 1,
@@ -640,7 +639,7 @@ mod tests {
             hams: hams::hams::config::HamsConfig::default(),
             llm: LlmConfig {
                 provider: "ollama".to_string(),
-                base_url: "http://127.0.0.1:1/v1".to_string(),
+                base_url: url::Url::parse("http://127.0.0.1:1/v1").unwrap(),
                 api_key: None,
                 model: "llama3".to_string(),
                 timeout_seconds: 1,
@@ -1407,7 +1406,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         // 6. Test custom prefix
-        let custom_app = create_router_with_prefix("/api/custom/v2").with_state(state);
+        let custom_app = create_router_with_prefix("/api/custom/v2").with_state(state.clone());
         let resp = custom_app
             .oneshot(
                 Request::builder()
@@ -1419,6 +1418,53 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+
+        // 7. Test root prefix "/" preserves root without falling back to /api/graphrag/v1
+        let root_only_app = create_router_with_prefix("/").with_state(state.clone());
+        let resp_root = root_only_app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/hello")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp_root.status(), StatusCode::OK);
+
+        let root_only_app_2 = create_router_with_prefix("/").with_state(state.clone());
+        let resp_unmounted = root_only_app_2
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/graphrag/v1/hello")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp_unmounted.status(), StatusCode::NOT_FOUND);
+
+        // 8. Test unknown steward action fails deserialization with 422 Unprocessable Entity
+        let steward_app = create_router().with_state(state);
+        let invalid_steward_resp = steward_app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/ontology/steward-edge")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"left_dataset":"a","left_field":"id","right_dataset":"b","right_field":"id","action":"bogus_action","steward_id":"alice"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            invalid_steward_resp.status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
     }
 
     #[tokio::test]

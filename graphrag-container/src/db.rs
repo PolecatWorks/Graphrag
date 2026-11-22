@@ -7,6 +7,12 @@ use url::Url;
 pub enum DatabaseError {
     #[error("database.url must not be empty")]
     EmptyUrl,
+    #[error("database.url is not a valid URL: {0}")]
+    InvalidUrl(#[from] url::ParseError),
+    #[error("failed to set database username on database.url")]
+    SetUsernameFailed,
+    #[error("failed to set database password on database.url")]
+    SetPasswordFailed,
     #[error("database.pool_size must be greater than 0")]
     ZeroPoolSize,
     #[error("database.timeout_seconds must be greater than 0")]
@@ -76,23 +82,25 @@ impl DatabaseUrlConfig {
         }
     }
 
-    /// Assembles the final connection URL, incorporating username and password if set.
-    pub fn connection_url(&self) -> String {
-        if self.username.is_none() && self.password.is_none() {
-            return self.url.clone();
+    /// Assembles and parses the final connection URL, incorporating username and password if set.
+    pub fn connection_url(&self) -> Result<Url, DatabaseError> {
+        let trimmed = self.url.trim();
+        if trimmed.is_empty() {
+            return Err(DatabaseError::EmptyUrl);
         }
 
-        if let Ok(mut parsed) = Url::parse(&self.url) {
-            if let Some(user) = &self.username {
-                let _ = parsed.set_username(user);
-            }
-            if let Some(pass) = &self.password {
-                let _ = parsed.set_password(Some(pass));
-            }
-            parsed.to_string()
-        } else {
-            self.url.clone()
+        let mut parsed = Url::parse(trimmed)?;
+        if let Some(user) = &self.username {
+            parsed
+                .set_username(user)
+                .map_err(|()| DatabaseError::SetUsernameFailed)?;
         }
+        if let Some(pass) = &self.password {
+            parsed
+                .set_password(Some(pass))
+                .map_err(|()| DatabaseError::SetPasswordFailed)?;
+        }
+        Ok(parsed)
     }
 }
 
@@ -105,10 +113,7 @@ pub struct DatabaseConfig {
 
 impl DatabaseConfig {
     pub fn validate(&self) -> Result<(), DatabaseError> {
-        let conn_url = self.url.connection_url();
-        if conn_url.trim().is_empty() {
-            return Err(DatabaseError::EmptyUrl);
-        }
+        self.url.connection_url()?;
         if self.pool_size == 0 {
             return Err(DatabaseError::ZeroPoolSize);
         }
@@ -120,12 +125,13 @@ impl DatabaseConfig {
 }
 
 pub async fn init_db(config: &DatabaseConfig) -> Result<PgPool, DatabaseError> {
+    let conn_url = config.url.connection_url()?;
     let pool_options = PgPoolOptions::new()
         .max_connections(config.pool_size)
         .acquire_timeout(Duration::from_secs(config.timeout_seconds));
 
     let pool = pool_options
-        .connect(&config.url.connection_url())
+        .connect(conn_url.as_str())
         .await
         .map_err(DatabaseError::ConnectionFailed)?;
 
@@ -171,7 +177,10 @@ mod tests {
     #[test]
     fn test_database_url_config_connection_url_simple() {
         let url_config = DatabaseUrlConfig::new("postgres://localhost:5432/test");
-        assert_eq!(url_config.connection_url(), "postgres://localhost:5432/test");
+        assert_eq!(
+            url_config.connection_url().unwrap().as_str(),
+            "postgres://localhost:5432/test"
+        );
     }
 
     #[test]
@@ -182,9 +191,28 @@ mod tests {
             password: Some("mypass".to_string()),
         };
         assert_eq!(
-            url_config.connection_url(),
+            url_config.connection_url().unwrap().as_str(),
             "postgres://myuser:mypass@localhost:5432/test"
         );
+    }
+
+    #[test]
+    fn test_database_url_config_rejects_invalid_url_and_cannot_be_a_base_credentials() {
+        let bad = DatabaseUrlConfig::new("not a url");
+        assert!(matches!(
+            bad.connection_url(),
+            Err(DatabaseError::InvalidUrl(_))
+        ));
+
+        let cannot_set_creds = DatabaseUrlConfig {
+            url: "mailto:someone@example.com".to_string(),
+            username: Some("user".to_string()),
+            password: Some("pass".to_string()),
+        };
+        assert!(matches!(
+            cannot_set_creds.connection_url(),
+            Err(DatabaseError::SetUsernameFailed)
+        ));
     }
 
     #[rstest]
