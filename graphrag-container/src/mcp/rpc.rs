@@ -130,13 +130,12 @@ pub async fn handle_json_rpc(state: &AppState, raw_request: Value) -> Option<Val
         }
     };
 
-    Some(match id {
-        Some(id_val) => json!({
+    id.map(|id_val| {
+        json!({
             "jsonrpc": "2.0",
             "id": id_val,
             "result": result
-        }),
-        None => result,
+        })
     })
 }
 
@@ -330,5 +329,24 @@ mod tests {
         });
         let resp3 = handle_json_rpc(&state, req_no_tool_name).await.unwrap();
         assert_eq!(resp3["error"]["code"], -32602);
+    }
+
+    #[tokio::test]
+    async fn test_rpc_notification_without_id_returns_none() {
+        let state = mock_app_state();
+
+        // notifications/initialized without id -> None
+        let init_notif = json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        });
+        assert!(handle_json_rpc(&state, init_notif).await.is_none());
+
+        // Any other method without id (JSON-RPC 2.0 notification) -> None
+        let ping_notif = json!({
+            "jsonrpc": "2.0",
+            "method": "ping"
+        });
+        assert!(handle_json_rpc(&state, ping_notif).await.is_none());
     }
 }
