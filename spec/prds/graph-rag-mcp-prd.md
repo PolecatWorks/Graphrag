@@ -298,6 +298,7 @@ Supports synchronization with `data-engine` and join-path discovery for `agent-a
 |---|---|---|---|---|
 | `graphrag_find_join_path` | `FindJoinPathRequest` | `seed_concepts_or_fields: Vec<String>` | `question: Option<String>`, `include_unverified: Option<bool>`, `min_confidence: Option<f64>` | Resolves business concepts to physical dataset fields, computes the optimal join path across `JOINABLE_WITH` tuples (excluding `FORBIDDEN_JOIN`), detects `1:N` fan-out traps, and returns the epistemic trust summary. |
 | `ontology_sync_dataset` | `OntologySyncDatasetRequest` | `dataset: DatasetOntologyNode`, `fields: Vec<FieldOntologyNode>` | `join_hypotheses: Option<Vec<JoinOntologyEdge>>` | Bulk upserts a profiled `Dataset` node, its `Field` nodes, `HAS_FIELD` edges, and probed `JOINABLE_WITH` / `FORBIDDEN_JOIN` edges while preserving human-verified descriptions. |
+| `graphrag_export_subgraph` | `OntologySubgraphRequest` | — | `focus_node_id: Option<String>`, `hops: Option<u8>`, `layers: Option<Vec<u8>>`, `dataset_ids: Option<Vec<String>>`, `epistemic_status: Option<String>`, `include_forbidden: Option<bool>`, `max_nodes: Option<usize>`, `max_edges: Option<usize>` | Returns a bounded multi-layer subgraph (Layer 2 Concepts/Metrics/Communities, Layer 1 Datasets, Layer 0 Fields, `JOINABLE_WITH`, `FORBIDDEN_JOIN`, and `CONFOUNDED_BY` edges) powering `data-engine`'s `./SemanticTopologyWrapper`. |
 
 ---
 

@@ -106,7 +106,23 @@ Provides a single idempotent bulk upsert endpoint called by `data-engine` after 
 
 ---
 
-### 5. Ontology Discovery & Benchmark Validation Datasets
+### 5. Bounded Ontology Subgraph Export for Topology Visualization (`GET /ontology/subgraph` & MCP `graphrag_export_subgraph`)
+To power interactive multi-layer semantic & structural visualizations in [`data-engine`](https://github.com/PolecatWorks/data-engine)'s `./SemanticTopologyWrapper` without N+1 node/edge lookups, GraphRAG-RS exposes a scoped subgraph export endpoint (`GET ${api_prefix}/ontology/subgraph` & `/ontology/subgraph`) and matching MCP tool (`graphrag_export_subgraph`):
+- **Query Parameters**:
+  - `focus_node_id` (optional canonical ID, e.g. `net_revenue` or `sales_orders`) and `hops` (`1..=5`, default `2`) for ego-network traversal.
+  - `layers` (optional filter, e.g. `0,1,2` to select Layer 0 Fields, Layer 1 Datasets, and Layer 2 Business Concepts/Metrics/Communities).
+  - `dataset_ids` (optional comma-separated canonical dataset IDs to retrieve only semantic concepts, metrics, communities, joins, and confounders incident to a target set of datasets).
+  - `epistemic_status` (optional filter) and `include_forbidden` (`bool`, default `true` so `FORBIDDEN_JOIN` negative constraints are visually rendered).
+  - `max_nodes` & `max_edges` (bounded by server configuration to prevent oversized payloads).
+- **Response Payload (`OntologySubgraphResponse`)**:
+  - `nodes`: Typed vertices carrying `id`, `label` (`BusinessConcept`, `BusinessMetric`, `CommunitySummary`, `Dataset`, `Field`), `layer`, `description`, `epistemic_status`, `confidence`, `verified_by`, and structured `properties` (including `statistical_profile` and `known_confounders`).
+  - `edges`: Directed tuples (`source_id`, `predicate`, `target_id`, `epistemic_status`, `confidence`, `properties`) covering `SUMMARIZES`, `DEFINED_BY`, `GOVERNED_BY`, `COMPUTED_FROM`, `HAS_FIELD`, `JOINABLE_WITH`, `FORBIDDEN_JOIN`, and derived `CONFOUNDED_BY` relationships.
+  - `communities`: Lightweight `{ id, label, member_node_ids }` descriptors for rendering Layer 2 domain cluster hulls.
+  - `truncated`: `bool`, `total_matching_nodes`, and `total_matching_edges`.
+
+---
+
+### 6. Ontology Discovery & Benchmark Validation Datasets
 To empirically verify that **GraphRAG-RS** and [`data-engine`](https://github.com/PolecatWorks/data-engine) accurately infer semantic layers, detect fan-out/chasm traps, and honor `FORBIDDEN_JOIN` negative constraints, the ontology graph is benchmarked against three validation tiers (detailed in `data-engine`'s `validation-datasets-and-benchmark-prd.md`):
 
 1. **Valentine Schema & Join Discovery Benchmark ([`delftdata/valentine`](https://github.com/delftdata/valentine))**:
