@@ -1,6 +1,6 @@
 # Spec 25: Bounded Ontology Subgraph Export for Topology Visualization (`GET /ontology/subgraph` & MCP `graphrag_export_subgraph`)
 
-- **Status**: `draft`
+- **Status**: `complete`
 - **Derived From**: [autonomous-semantic-ontology-prd.md](../prds/autonomous-semantic-ontology-prd.md), [graph-rag-mcp-prd.md](../prds/graph-rag-mcp-prd.md)
 - **Dependencies**: [22-ontology-schema-and-dataset-sync-spec.md](./22-ontology-schema-and-dataset-sync-spec.md), [23-ontology-join-path-planner-spec.md](./23-ontology-join-path-planner-spec.md), [24-epistemic-statistical-traits-and-confounders-spec.md](./24-epistemic-statistical-traits-and-confounders-spec.md)
 

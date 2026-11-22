@@ -638,6 +638,18 @@ impl GraphRagMcpServer {
                     "isError": false
                 }))
             }
+            "graphrag_export_subgraph" => {
+                let req: crate::ontology::OntologySubgraphRequest = serde_json::from_value(arguments)
+                    .map_err(|e| McpError::InvalidArguments("graphrag_export_subgraph".to_string(), e.to_string()))?;
+                let resp = state
+                    .graph_store
+                    .export_ontology_subgraph(&state.pool, &state.config.ontology.subgraph, req)
+                    .await?;
+                Ok(serde_json::json!({
+                    "content": [{"type": "text", "text": serde_json::to_string_pretty(&resp)?}],
+                    "isError": false
+                }))
+            }
             _ => Err(McpError::ToolNotFound(name.to_string())),
         }
     }
@@ -787,6 +799,11 @@ impl GraphRagMcpServer {
 
     #[tool(description = "Plans the highest-confidence multi-hop join path across datasets while blocking FORBIDDEN_JOIN edges and warning on N:M or 1:N*1:N fan-out traps.")]
     pub fn graphrag_find_join_path(&self, _params: Parameters<crate::ontology::JoinPathRequest>) -> Result<String, String> {
+        Ok("Dispatched via call_tool".to_string())
+    }
+
+    #[tool(description = "Exports a bounded multi-layer semantic ontology subgraph (Layer 2 Concepts/Metrics/Communities, Layer 1 Datasets, Layer 0 Fields, JOINABLE_WITH, FORBIDDEN_JOIN, and derived CONFOUNDED_BY edges) for topology visualization.")]
+    pub fn graphrag_export_subgraph(&self, _params: Parameters<crate::ontology::OntologySubgraphRequest>) -> Result<String, String> {
         Ok("Dispatched via call_tool".to_string())
     }
 }

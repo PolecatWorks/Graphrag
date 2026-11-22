@@ -22,3 +22,9 @@ mcp:
   instructions: "GraphRAG-RS Model Context Protocol Server for knowledge graph ingestion, hybrid RAG querying, and BREAD data management."
 logging:
   level: "info"
+ontology:
+  subgraph:
+    default_hops: 2
+    max_hops: 5
+    default_max_nodes: 250
+    default_max_edges: 500

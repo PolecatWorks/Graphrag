@@ -15,3 +15,9 @@ llm:
   base_url: "http://ollama.k8s:80/v1"
   model: "llama3.1:8b"
   timeout_seconds: 60
+ontology:
+  subgraph:
+    default_hops: 2
+    max_hops: 5
+    default_max_nodes: 250
+    default_max_edges: 500

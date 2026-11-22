@@ -132,6 +132,18 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct OntologySubgraphQuery {
+    pub focus_node_id: Option<String>,
+    pub hops: Option<u8>,
+    pub layers: Option<String>,
+    pub dataset_ids: Option<String>,
+    pub epistemic_status: Option<String>,
+    pub include_forbidden: Option<bool>,
+    pub max_nodes: Option<usize>,
+    pub max_edges: Option<usize>,
+}
+
 fn core_routes() -> Router<AppState> {
     Router::new()
         .route("/hello", get(hello))
@@ -150,6 +162,7 @@ fn core_routes() -> Router<AppState> {
         .route("/ontology/steward-edge", post(steward_decide_edge))
         .route("/ontology/steward-field", post(steward_decide_field))
         .route("/ontology/join-path", post(find_ontology_join_path))
+        .route("/ontology/subgraph", get(export_ontology_subgraph))
         .route("/mcp", post(handle_http_mcp))
 }
 
@@ -256,7 +269,7 @@ async fn delete_document(
 fn map_graph_error_to_status(err: &GraphRagError) -> StatusCode {
     match err {
         GraphRagError::DocumentNotFound(_) | GraphRagError::NodeNotFound(_) | GraphRagError::EdgeNotFound { .. } | GraphRagError::CommunityNotFound(_) => StatusCode::NOT_FOUND,
-        GraphRagError::EmptyMarkdownContent | GraphRagError::EmptyFilename | GraphRagError::EmptyQuestion | GraphRagError::ZeroMaxChunkChars | GraphRagError::EmptyNodeLabel | GraphRagError::EmptyNodeId | GraphRagError::EmptyPredicate | GraphRagError::InvalidExtractionJson(_) => StatusCode::BAD_REQUEST,
+        GraphRagError::EmptyMarkdownContent | GraphRagError::EmptyFilename | GraphRagError::EmptyQuestion | GraphRagError::ZeroMaxChunkChars | GraphRagError::EmptyNodeLabel | GraphRagError::EmptyNodeId | GraphRagError::EmptyPredicate | GraphRagError::InvalidExtractionJson(_) | GraphRagError::InvalidSubgraphQuery(_) => StatusCode::BAD_REQUEST,
         GraphRagError::Llm(_) | GraphRagError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -446,6 +459,69 @@ async fn find_ontology_join_path(
     }
 }
 
+async fn export_ontology_subgraph(
+    State(state): State<AppState>,
+    Query(query): Query<OntologySubgraphQuery>,
+) -> impl IntoResponse {
+    let layers = match query.layers {
+        Some(ref raw) if !raw.trim().is_empty() => {
+            let mut parsed = Vec::new();
+            for part in raw.split(',') {
+                let p = part.trim();
+                if p.is_empty() {
+                    continue;
+                }
+                match p.parse::<u8>() {
+                    Ok(v) => parsed.push(v),
+                    Err(_) => {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(ErrorResponse {
+                                error: format!("invalid layer value: '{}'", p),
+                            }),
+                        )
+                            .into_response();
+                    }
+                }
+            }
+            Some(parsed)
+        }
+        _ => None,
+    };
+
+    let dataset_ids = query.dataset_ids.and_then(|raw| {
+        let items: Vec<String> = raw
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if items.is_empty() { None } else { Some(items) }
+    });
+
+    let req = crate::ontology::OntologySubgraphRequest {
+        focus_node_id: query.focus_node_id,
+        hops: query.hops,
+        layers,
+        dataset_ids,
+        epistemic_status: query.epistemic_status,
+        include_forbidden: query.include_forbidden,
+        max_nodes: query.max_nodes,
+        max_edges: query.max_edges,
+    };
+
+    match state
+        .graph_store
+        .export_ontology_subgraph(&state.pool, &state.config.ontology.subgraph, req)
+        .await
+    {
+        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        Err(err) => {
+            let status = map_graph_error_to_status(&err);
+            (status, Json(ErrorResponse { error: err.to_string() })).into_response()
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -500,6 +576,7 @@ mod tests {
             },
             mcp: crate::mcp::McpConfig::default(),
             logging: crate::logging::LoggingConfig::default(),
+            ontology: crate::ontology::OntologyConfig::default(),
         });
 
         AppState {
@@ -534,6 +611,7 @@ mod tests {
             },
             mcp: crate::mcp::McpConfig::default(),
             logging: crate::logging::LoggingConfig::default(),
+            ontology: crate::ontology::OntologyConfig::default(),
         });
 
         AppState {
@@ -1303,5 +1381,84 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_ontology_subgraph_http_endpoint_and_error_codes() {
+        let state = mock_app_state();
+
+        // Sync a dataset first via HTTP
+        let sync_body = serde_json::json!({
+            "dataset_name": "sales_orders",
+            "row_count": 100,
+            "fields": [
+                {
+                    "field_name": "order_id",
+                    "arrow_data_type": "Int64",
+                    "null_ratio": 0.0,
+                    "uniqueness_ratio": 1.0,
+                    "inferred_semantic_domain": "identifier"
+                }
+            ]
+        });
+        let sync_resp = create_router()
+            .with_state(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/graphrag/v1/ontology/sync-dataset")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&sync_body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(sync_resp.status(), StatusCode::OK);
+
+        // 1. Valid GET /api/graphrag/v1/ontology/subgraph
+        let ok_resp = create_router()
+            .with_state(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/graphrag/v1/ontology/subgraph?focus_node_id=sales_orders&hops=1&layers=0,1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(ok_resp.status(), StatusCode::OK);
+        let bytes = ok_resp.into_body().collect().await.unwrap().to_bytes();
+        let sg: crate::ontology::OntologySubgraphResponse = serde_json::from_slice(&bytes).unwrap();
+        assert!(sg.nodes.iter().any(|n| n.id == "sales_orders" && n.layer == 1));
+        assert!(sg.nodes.iter().any(|n| n.id == "sales_orders_order_id" && n.layer == 0));
+
+        // 2. Unknown focus node -> 404 Not Found
+        let not_found = create_router()
+            .with_state(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/graphrag/v1/ontology/subgraph?focus_node_id=does_not_exist")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(not_found.status(), StatusCode::NOT_FOUND);
+
+        // 3. Invalid layer -> 400 Bad Request
+        let bad_req = create_router()
+            .with_state(state)
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/graphrag/v1/ontology/subgraph?layers=9")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(bad_req.status(), StatusCode::BAD_REQUEST);
     }
 }
