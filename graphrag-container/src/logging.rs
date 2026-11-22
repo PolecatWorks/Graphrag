@@ -14,19 +14,14 @@ pub enum LoggingError {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct LoggingConfig {
-    #[serde(default = "default_log_level")]
     pub level: String,
     pub filter: Option<String>,
-}
-
-fn default_log_level() -> String {
-    "info".to_string()
 }
 
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
-            level: default_log_level(),
+            level: "info".to_string(),
             filter: None,
         }
     }

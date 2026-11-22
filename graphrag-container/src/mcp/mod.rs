@@ -6,8 +6,6 @@ pub mod server;
 
 #[derive(thiserror::Error, Debug)]
 pub enum McpError {
-    #[error("Invalid MCP api_prefix '{0}': must start with '/' and not end with '/'")]
-    InvalidApiPrefix(String),
     #[error("MCP server_name cannot be empty")]
     EmptyServerName,
     #[error("MCP instructions cannot be empty")]
@@ -27,7 +25,6 @@ pub enum McpError {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct McpConfig {
     pub enabled: bool,
-    pub api_prefix: String,
     pub server_name: String,
     pub instructions: String,
 }
@@ -36,7 +33,6 @@ impl Default for McpConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            api_prefix: "/api".to_string(),
             server_name: "graphrag-mcp".to_string(),
             instructions: "GraphRAG-RS Model Context Protocol Server for knowledge graph ingestion, hybrid RAG querying, and BREAD data management.".to_string(),
         }
@@ -46,13 +42,6 @@ impl Default for McpConfig {
 impl McpConfig {
     pub fn validate(&self) -> Result<(), McpError> {
         if self.enabled {
-            if self.api_prefix.trim().is_empty()
-                || !self.api_prefix.starts_with('/')
-                || (self.api_prefix.len() > 1 && self.api_prefix.ends_with('/'))
-            {
-                return Err(McpError::InvalidApiPrefix(self.api_prefix.clone()));
-            }
-
             if self.server_name.trim().is_empty() {
                 return Err(McpError::EmptyServerName);
             }
@@ -76,19 +65,6 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_api_prefix_empty_or_no_slash() {
-        let mut config = McpConfig::default();
-        config.api_prefix = "".to_string();
-        assert!(matches!(config.validate(), Err(McpError::InvalidApiPrefix(_))));
-
-        config.api_prefix = "api".to_string();
-        assert!(matches!(config.validate(), Err(McpError::InvalidApiPrefix(_))));
-
-        config.api_prefix = "/api/".to_string();
-        assert!(matches!(config.validate(), Err(McpError::InvalidApiPrefix(_))));
-    }
-
-    #[test]
     fn test_empty_server_name() {
         let mut config = McpConfig::default();
         config.server_name = "   ".to_string();
@@ -108,7 +84,6 @@ mod tests {
         config.enabled = false;
         config.server_name = "".to_string();
         config.instructions = "".to_string();
-        config.api_prefix = "invalid".to_string();
         assert!(config.validate().is_ok());
     }
 }

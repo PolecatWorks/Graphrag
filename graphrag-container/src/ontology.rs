@@ -25,41 +25,21 @@ pub enum OntologyError {
     InvalidMaxEdges(usize),
 }
 
-fn default_subgraph_hops() -> u8 {
-    2
-}
-
-fn default_subgraph_max_hops() -> u8 {
-    5
-}
-
-fn default_subgraph_max_nodes() -> usize {
-    250
-}
-
-fn default_subgraph_max_edges() -> usize {
-    500
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct OntologySubgraphConfig {
-    #[serde(default = "default_subgraph_hops")]
     pub default_hops: u8,
-    #[serde(default = "default_subgraph_max_hops")]
     pub max_hops: u8,
-    #[serde(default = "default_subgraph_max_nodes")]
     pub default_max_nodes: usize,
-    #[serde(default = "default_subgraph_max_edges")]
     pub default_max_edges: usize,
 }
 
 impl Default for OntologySubgraphConfig {
     fn default() -> Self {
         Self {
-            default_hops: default_subgraph_hops(),
-            max_hops: default_subgraph_max_hops(),
-            default_max_nodes: default_subgraph_max_nodes(),
-            default_max_edges: default_subgraph_max_edges(),
+            default_hops: 2,
+            max_hops: 5,
+            default_max_nodes: 250,
+            default_max_edges: 500,
         }
     }
 }
@@ -87,7 +67,6 @@ impl OntologySubgraphConfig {
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct OntologyConfig {
-    #[serde(default)]
     pub subgraph: OntologySubgraphConfig,
 }
 
@@ -223,12 +202,21 @@ pub struct StatisticalCaveat {
     pub verified_by: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum StewardAction {
+    #[serde(alias = "approve", alias = "verified")]
+    Verify,
+    #[serde(alias = "rejected", alias = "forbidden_join")]
+    Reject,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 pub struct StewardFieldRequest {
     pub dataset_name: String,
     pub field_name: String,
-    /// Action such as "verify" or "reject"
-    pub action: String,
+    /// Action: "verify" or "reject"
+    pub action: StewardAction,
     pub verified_by: String,
     #[serde(default)]
     pub recommended_test_family: Option<String>,
@@ -329,7 +317,7 @@ pub struct StewardEdgeRequest {
     pub right_dataset: String,
     pub right_field: String,
     /// Either "verify" or "reject"
-    pub action: String,
+    pub action: StewardAction,
     pub steward_id: String,
     #[serde(default)]
     pub reason: Option<String>,
@@ -743,100 +731,102 @@ impl GraphStore {
 
         let mut guard = self.memory.write().await;
 
-        let action_norm = req.action.trim().to_ascii_lowercase();
-        if action_norm == "reject" || action_norm == "forbidden_join" {
-            // Remove any JOINABLE_WITH between these two fields
-            guard.edges.retain(|e| {
-                !(e.predicate == "JOINABLE_WITH"
-                    && ((e.source == left_fid && e.target == right_fid)
-                        || (e.source == right_fid && e.target == left_fid)))
-            });
-            guard
-                .edge_meta
-                .remove(&(left_fid.clone(), "JOINABLE_WITH".to_string(), right_fid.clone()));
-            guard
-                .edge_meta
-                .remove(&(right_fid.clone(), "JOINABLE_WITH".to_string(), left_fid.clone()));
-
-            // Insert FORBIDDEN_JOIN negative constraint
-            guard.edges.insert(GraphTuple {
-                source: left_fid.clone(),
-                predicate: "FORBIDDEN_JOIN".to_string(),
-                target: right_fid.clone(),
-                document_id: None,
-            });
-            let reason = req.reason.unwrap_or_else(|| {
-                "Rejected by human steward: incompatible entity namespaces".to_string()
-            });
-            guard.edge_meta.insert(
-                (
-                    left_fid.clone(),
-                    "FORBIDDEN_JOIN".to_string(),
-                    right_fid.clone(),
-                ),
-                OntologyElementMeta {
-                    epistemic_status: "rejected".to_string(),
-                    confidence: 1.0,
-                    verified_by: Some(req.steward_id.clone()),
-                    properties: json!({
-                        "left_dataset": left_ds,
-                        "right_dataset": right_ds,
-                        "rejection_reason": reason,
-                    }),
-                },
-            );
-
-            Ok(StewardEdgeResponse {
-                source_field_id: left_fid,
-                predicate: "FORBIDDEN_JOIN".to_string(),
-                target_field_id: right_fid,
-                epistemic_status: "rejected".to_string(),
-                verified_by: req.steward_id,
-            })
-        } else {
-            let key = (
-                left_fid.clone(),
-                "JOINABLE_WITH".to_string(),
-                right_fid.clone(),
-            );
-            let mut props = guard
-                .edge_meta
-                .get(&key)
-                .map(|m| m.properties.clone())
-                .unwrap_or_else(|| {
-                    json!({
-                        "left_dataset": left_ds,
-                        "right_dataset": right_ds,
-                        "observed_cardinality": "N:1",
-                    })
+        match req.action {
+            StewardAction::Reject => {
+                // Remove any JOINABLE_WITH between these two fields
+                guard.edges.retain(|e| {
+                    !(e.predicate == "JOINABLE_WITH"
+                        && ((e.source == left_fid && e.target == right_fid)
+                            || (e.source == right_fid && e.target == left_fid)))
                 });
-            if let Some(reason_note) = &req.reason {
-                props["steward_note"] = json!(reason_note);
+                guard
+                    .edge_meta
+                    .remove(&(left_fid.clone(), "JOINABLE_WITH".to_string(), right_fid.clone()));
+                guard
+                    .edge_meta
+                    .remove(&(right_fid.clone(), "JOINABLE_WITH".to_string(), left_fid.clone()));
+
+                // Insert FORBIDDEN_JOIN negative constraint
+                guard.edges.insert(GraphTuple {
+                    source: left_fid.clone(),
+                    predicate: "FORBIDDEN_JOIN".to_string(),
+                    target: right_fid.clone(),
+                    document_id: None,
+                });
+                let reason = req.reason.unwrap_or_else(|| {
+                    "Rejected by human steward: incompatible entity namespaces".to_string()
+                });
+                guard.edge_meta.insert(
+                    (
+                        left_fid.clone(),
+                        "FORBIDDEN_JOIN".to_string(),
+                        right_fid.clone(),
+                    ),
+                    OntologyElementMeta {
+                        epistemic_status: "rejected".to_string(),
+                        confidence: 1.0,
+                        verified_by: Some(req.steward_id.clone()),
+                        properties: json!({
+                            "left_dataset": left_ds,
+                            "right_dataset": right_ds,
+                            "rejection_reason": reason,
+                        }),
+                    },
+                );
+
+                Ok(StewardEdgeResponse {
+                    source_field_id: left_fid,
+                    predicate: "FORBIDDEN_JOIN".to_string(),
+                    target_field_id: right_fid,
+                    epistemic_status: "rejected".to_string(),
+                    verified_by: req.steward_id,
+                })
             }
+            StewardAction::Verify => {
+                let key = (
+                    left_fid.clone(),
+                    "JOINABLE_WITH".to_string(),
+                    right_fid.clone(),
+                );
+                let mut props = guard
+                    .edge_meta
+                    .get(&key)
+                    .map(|m| m.properties.clone())
+                    .unwrap_or_else(|| {
+                        json!({
+                            "left_dataset": left_ds,
+                            "right_dataset": right_ds,
+                            "observed_cardinality": "N:1",
+                        })
+                    });
+                if let Some(reason_note) = &req.reason {
+                    props["steward_note"] = json!(reason_note);
+                }
 
-            guard.edges.insert(GraphTuple {
-                source: left_fid.clone(),
-                predicate: "JOINABLE_WITH".to_string(),
-                target: right_fid.clone(),
-                document_id: None,
-            });
-            guard.edge_meta.insert(
-                key,
-                OntologyElementMeta {
+                guard.edges.insert(GraphTuple {
+                    source: left_fid.clone(),
+                    predicate: "JOINABLE_WITH".to_string(),
+                    target: right_fid.clone(),
+                    document_id: None,
+                });
+                guard.edge_meta.insert(
+                    key,
+                    OntologyElementMeta {
+                        epistemic_status: "verified".to_string(),
+                        confidence: 1.0,
+                        verified_by: Some(req.steward_id.clone()),
+                        properties: props,
+                    },
+                );
+
+                Ok(StewardEdgeResponse {
+                    source_field_id: left_fid,
+                    predicate: "JOINABLE_WITH".to_string(),
+                    target_field_id: right_fid,
                     epistemic_status: "verified".to_string(),
-                    confidence: 1.0,
-                    verified_by: Some(req.steward_id.clone()),
-                    properties: props,
-                },
-            );
-
-            Ok(StewardEdgeResponse {
-                source_field_id: left_fid,
-                predicate: "JOINABLE_WITH".to_string(),
-                target_field_id: right_fid,
-                epistemic_status: "verified".to_string(),
-                verified_by: req.steward_id,
-            })
+                    verified_by: req.steward_id,
+                })
+            }
         }
     }
 
@@ -1201,11 +1191,9 @@ impl GraphStore {
         }
         let field_node_id = canonical_field_node_id(&ds_id, &req.field_name);
         let canonical_id = format!("{}.{}", ds_id, req.field_name.trim());
-        let action_norm = req.action.trim().to_ascii_lowercase();
-        let new_status = if action_norm == "reject" {
-            "rejected".to_string()
-        } else {
-            "verified".to_string()
+        let new_status = match req.action {
+            StewardAction::Reject => "rejected".to_string(),
+            StewardAction::Verify => "verified".to_string(),
         };
 
         let mut guard = self.memory.write().await;
@@ -1767,7 +1755,7 @@ mod tests {
                     left_field: "cust_ref_key".to_string(),
                     right_dataset: "crm_customers".to_string(),
                     right_field: "party_uuid".to_string(),
-                    action: "verify".to_string(),
+                    action: StewardAction::Verify,
                     steward_id: "alice@polecatworks.io".to_string(),
                     reason: Some("Confirmed CRM foreign key mapping".to_string()),
                 },
@@ -1851,7 +1839,7 @@ mod tests {
                     left_field: "account_id".to_string(),
                     right_dataset: "marketing_leads".to_string(),
                     right_field: "account_id".to_string(),
-                    action: "reject".to_string(),
+                    action: StewardAction::Reject,
                     steward_id: "bob@polecatworks.io".to_string(),
                     reason: Some("Disjoint surrogate key sequences (Billing Tax IDs vs Ad Leads)".to_string()),
                 },
@@ -2127,7 +2115,7 @@ mod tests {
                 StewardFieldRequest {
                     dataset_name: "sales_orders".to_string(),
                     field_name: "order_total_usd".to_string(),
-                    action: "verify".to_string(),
+                    action: StewardAction::Verify,
                     verified_by: "steward_alice".to_string(),
                     recommended_test_family: Some("non_parametric_or_log_transform".to_string()),
                     known_confounders: Some(vec!["customers.segment".to_string()]),
@@ -2207,7 +2195,7 @@ mod tests {
                 StewardFieldRequest {
                     dataset_name: "daily_revenue".to_string(),
                     field_name: "net_usd".to_string(),
-                    action: "verify".to_string(),
+                    action: StewardAction::Verify,
                     verified_by: "steward_bob".to_string(),
                     recommended_test_family: Some("welch_t".to_string()),
                     known_confounders: None,
@@ -2323,7 +2311,7 @@ mod tests {
                 StewardFieldRequest {
                     dataset_name: "orders".to_string(),
                     field_name: "order_total_usd".to_string(),
-                    action: "verify".to_string(),
+                    action: StewardAction::Verify,
                     verified_by: "steward_alice".to_string(),
                     recommended_test_family: None,
                     known_confounders: None,
@@ -2720,5 +2708,19 @@ mod tests {
             .expect_err("unknown focus node must fail");
 
         assert!(matches!(err, GraphRagError::NodeNotFound(_)));
+    }
+
+    #[test]
+    fn test_steward_action_deserialization_and_unknown_rejection() {
+        for valid_verify in [r#""verify""#, r#""approve""#, r#""verified""#] {
+            let parsed: StewardAction = serde_json::from_str(valid_verify).unwrap();
+            assert_eq!(parsed, StewardAction::Verify);
+        }
+        for valid_reject in [r#""reject""#, r#""rejected""#, r#""forbidden_join""#] {
+            let parsed: StewardAction = serde_json::from_str(valid_reject).unwrap();
+            assert_eq!(parsed, StewardAction::Reject);
+        }
+        let invalid: Result<StewardAction, _> = serde_json::from_str(r#""unknown_action""#);
+        assert!(invalid.is_err());
     }
 }

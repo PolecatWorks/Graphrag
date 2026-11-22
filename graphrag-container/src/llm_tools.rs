@@ -2,18 +2,22 @@ use rig_core::client::CompletionClient;
 use rig_core::completion::{AssistantContent, CompletionError, CompletionModel};
 use rig_core::providers::openai::Client;
 use serde::Deserialize;
+use std::time::Duration;
 use thiserror::Error;
+use url::Url;
 
 #[derive(Debug, Error)]
 pub enum LlmError {
     #[error("llm.provider must not be empty")]
     EmptyProvider,
-    #[error("llm.base_url must not be empty")]
-    EmptyBaseUrl,
+    #[error("llm.base_url must be an HTTP(S) URL with a host: {0}")]
+    InvalidBaseUrl(String),
     #[error("llm.model must not be empty")]
     EmptyModel,
     #[error("llm.timeout_seconds must be greater than 0")]
     ZeroTimeout,
+    #[error("LLM request timed out after {0}s")]
+    RequestTimeout(u64),
     #[error(transparent)]
     ClientInit(#[from] rig_core::http_client::Error),
     #[error(transparent)]
@@ -23,7 +27,7 @@ pub enum LlmError {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct LlmConfig {
     pub provider: String,
-    pub base_url: String,
+    pub base_url: Url,
     pub api_key: Option<String>,
     pub model: String,
     pub timeout_seconds: u64,
@@ -34,8 +38,9 @@ impl LlmConfig {
         if self.provider.trim().is_empty() {
             return Err(LlmError::EmptyProvider);
         }
-        if self.base_url.trim().is_empty() {
-            return Err(LlmError::EmptyBaseUrl);
+        if !matches!(self.base_url.scheme(), "http" | "https") || self.base_url.host_str().is_none()
+        {
+            return Err(LlmError::InvalidBaseUrl(self.base_url.to_string()));
         }
         if self.model.trim().is_empty() {
             return Err(LlmError::EmptyModel);
@@ -51,23 +56,23 @@ impl LlmConfig {
 pub struct LlmClient {
     pub client: Client,
     pub model_name: String,
+    pub timeout: Duration,
 }
 
 impl LlmClient {
     pub fn new(config: &LlmConfig) -> Result<Self, LlmError> {
+        config.validate()?;
+
         let api_key = config.api_key.as_deref().unwrap_or("sk-no-key-required");
-        let mut client_builder = rig_core::providers::openai::Client::builder().api_key(api_key);
-
-        let url = config.base_url.trim();
-        if !url.is_empty() {
-            client_builder = client_builder.base_url(url);
-        }
-
-        let rig_client = client_builder.build()?;
+        let rig_client = rig_core::providers::openai::Client::builder()
+            .api_key(api_key)
+            .base_url(config.base_url.as_str())
+            .build()?;
 
         Ok(Self {
             client: rig_client,
             model_name: config.model.clone(),
+            timeout: Duration::from_secs(config.timeout_seconds),
         })
     }
 
@@ -77,7 +82,10 @@ impl LlmClient {
             .completion_request(user_prompt)
             .preamble(preamble.to_string())
             .build();
-        let response = model.completion(request).await?;
+        let timeout_secs = self.timeout.as_secs();
+        let response = tokio::time::timeout(self.timeout, model.completion(request))
+            .await
+            .map_err(|_| LlmError::RequestTimeout(timeout_secs))??;
         let text = response
             .choice
             .iter()
@@ -99,7 +107,7 @@ mod tests {
     fn valid_llm_config() -> LlmConfig {
         LlmConfig {
             provider: "ollama".to_string(),
-            base_url: "http://localhost:11434/v1".to_string(),
+            base_url: Url::parse("http://localhost:11434/v1").unwrap(),
             api_key: Some("test-key".to_string()),
             model: "llama3".to_string(),
             timeout_seconds: 60,
@@ -115,6 +123,7 @@ mod tests {
         assert!(client.is_ok());
         let client = client.unwrap();
         assert_eq!(client.model_name, "llama3");
+        assert_eq!(client.timeout, Duration::from_secs(60));
     }
 
     #[test]
@@ -142,23 +151,13 @@ mod tests {
         );
     }
 
-    #[rstest]
-    #[case("")]
-    #[case(" ")]
-    #[case("  ")]
-    #[case("\t")]
-    #[case("\n")]
-    #[case(" \t\n ")]
-    fn test_llm_config_validate_empty_base_url(#[case] base_url: &str) {
+    #[test]
+    fn test_llm_config_validate_invalid_base_url_scheme() {
         let mut config = valid_llm_config();
-        config.base_url = base_url.to_string();
+        config.base_url = Url::parse("ftp://localhost:11434/v1").unwrap();
 
         let result = config.validate();
-        assert!(matches!(result, Err(LlmError::EmptyBaseUrl)));
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "llm.base_url must not be empty"
-        );
+        assert!(matches!(result, Err(LlmError::InvalidBaseUrl(_))));
     }
 
     #[rstest]

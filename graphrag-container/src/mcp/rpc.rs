@@ -166,7 +166,7 @@ mod tests {
             hams: hams::hams::config::HamsConfig::default(),
             llm: LlmConfig {
                 provider: "ollama".to_string(),
-                base_url: "http://127.0.0.1:1/v1".to_string(),
+                base_url: url::Url::parse("http://127.0.0.1:1/v1").unwrap(),
                 api_key: None,
                 model: "llama3".to_string(),
                 timeout_seconds: 1,
