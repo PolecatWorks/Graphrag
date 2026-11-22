@@ -69,3 +69,9 @@ flowchart LR
 ### 3. Service Account Integration (`graphrag-sa`)
 - Used for machine-to-machine interactions when GraphRAG queries database engines or Kafka topics.
 - Confidential client with credentials managed via ExternalSecrets.
+
+### 4. Ecosystem Realm Groups (`DataAgentAdmins` & `DataAgentUsers`)
+GraphRAG client roles are granted to portal users via centralized Keycloak realm groups defined in `Mfe-shell/fluxcd-dev/keycloak-service-capture.yaml`:
+- **`DataAgentAdmins` (`metadata.name: data-agent-admins`)**: Grants `graph:read`, `graph:write`, and `graph:admin`.
+- **`DataAgentUsers` (`metadata.name: data-agent-users`)**: Grants `graph:read` and `graph:write`.
+

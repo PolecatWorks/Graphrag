@@ -35,3 +35,5 @@ This directory contains the detailed technical specifications and Test-Driven De
 *   [23. Multi-Hop Steiner Join-Path Planner, `FORBIDDEN_JOIN` Blocking & Fan-Out Detector (`POST /ontology/join-path`)](./23-ontology-join-path-planner-spec.md) - `complete`
 *   [24. Epistemic Statistical Traits, Known Confounders & Join-Path Statistical Caveats](./24-epistemic-statistical-traits-and-confounders-spec.md) - `complete`
 *   [25. Bounded Ontology Subgraph Export for Topology Visualization (`GET /ontology/subgraph` & MCP `graphrag_export_subgraph`)](./25-ontology-subgraph-export-spec.md) - `complete`
+*   [26. Keycloak JWKS Authentication, `graphrag-api` Claims Gatekeeper & `graphrag-sa` Service Auth (`src/auth/`)](./26-keycloak-jwks-auth-and-claims-spec.md) - `draft`
+
