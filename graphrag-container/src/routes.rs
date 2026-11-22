@@ -245,13 +245,16 @@ async fn ingest_document(
             }),
         )
             .into_response(),
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: err.to_string(),
-            }),
-        )
-            .into_response(),
+        Err(err) => {
+            let status = map_graph_error_to_status(&err);
+            (
+                status,
+                Json(ErrorResponse {
+                    error: err.to_string(),
+                }),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -267,13 +270,16 @@ async fn query_graphrag(
         Ok((answer, contexts)) => {
             (StatusCode::OK, Json(QueryResponse { answer, contexts })).into_response()
         }
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: err.to_string(),
-            }),
-        )
-            .into_response(),
+        Err(err) => {
+            let status = map_graph_error_to_status(&err);
+            (
+                status,
+                Json(ErrorResponse {
+                    error: err.to_string(),
+                }),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -281,8 +287,19 @@ async fn delete_document(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    state.graph_store.delete_document(&state.pool, &id).await;
-    StatusCode::NO_CONTENT
+    match state.graph_store.delete_document(&state.pool, &id).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(err) => {
+            let status = map_graph_error_to_status(&err);
+            (
+                status,
+                Json(ErrorResponse {
+                    error: err.to_string(),
+                }),
+            )
+                .into_response()
+        }
+    }
 }
 fn map_graph_error_to_status(err: &GraphRagError) -> StatusCode {
     match err {
@@ -608,6 +625,7 @@ mod tests {
 
     fn mock_app_state() -> AppState {
         let pool = sqlx::postgres::PgPoolOptions::new()
+            .acquire_timeout(std::time::Duration::from_secs(1))
             .connect_lazy("postgres://mock:mock@localhost/mock")
             .unwrap();
         let config = Arc::new(AppConfig {
@@ -714,6 +732,8 @@ mod tests {
         assert!(query_json.answer.contains("Michael Collins"));
         assert!(!query_json.contexts.is_empty());
 
+        // With an unreachable mock DB pool, DELETE propagates the SQL error as 500 instead of swallowing it.
+        // Live-DB 204 deletion is verified in `test_bread_document_endpoints`.
         let app_delete = create_router().with_state(state);
         let del_resp = app_delete
             .oneshot(
@@ -726,7 +746,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(del_resp.status(), StatusCode::NO_CONTENT);
+        assert_eq!(del_resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[tokio::test]
@@ -1545,5 +1565,103 @@ mod tests {
             let resp_bytes = resp.into_body().collect().await.unwrap().to_bytes();
             assert!(resp_bytes.is_empty());
         }
+    }
+
+    #[test]
+    fn test_map_graph_error_to_status() {
+        assert_eq!(
+            map_graph_error_to_status(&GraphRagError::EmptyFilename),
+            StatusCode::BAD_REQUEST
+        );
+        assert_eq!(
+            map_graph_error_to_status(&GraphRagError::EmptyMarkdownContent),
+            StatusCode::BAD_REQUEST
+        );
+        assert_eq!(
+            map_graph_error_to_status(&GraphRagError::EmptyQuestion),
+            StatusCode::BAD_REQUEST
+        );
+        assert_eq!(
+            map_graph_error_to_status(&GraphRagError::DocumentNotFound("doc.md".to_string())),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            map_graph_error_to_status(&GraphRagError::Database(sqlx::Error::PoolTimedOut)),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert_eq!(
+            map_graph_error_to_status(&GraphRagError::Llm(
+                crate::llm_tools::LlmError::CompletionFailed(
+                    rig_core::completion::CompletionError::ProviderError(
+                        "upstream timeout".to_string()
+                    )
+                )
+            )),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ingest_and_query_error_status_mapping() {
+        let state = mock_app_state();
+
+        // Empty filename -> 400 Bad Request
+        let ingest_empty_filename = serde_json::to_vec(&IngestRequest {
+            filename: "   ".to_string(),
+            content: "# Valid content".to_string(),
+        })
+        .unwrap();
+        let resp = create_router()
+            .with_state(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/ingest")
+                    .header("content-type", "application/json")
+                    .body(Body::from(ingest_empty_filename))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // Empty content -> 400 Bad Request
+        let ingest_empty_content = serde_json::to_vec(&IngestRequest {
+            filename: "doc.md".to_string(),
+            content: "   ".to_string(),
+        })
+        .unwrap();
+        let resp = create_router()
+            .with_state(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/ingest")
+                    .header("content-type", "application/json")
+                    .body(Body::from(ingest_empty_content))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // Empty question -> 400 Bad Request
+        let empty_query = serde_json::to_vec(&QueryRequest {
+            question: "   ".to_string(),
+        })
+        .unwrap();
+        let resp = create_router()
+            .with_state(state)
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/query")
+                    .header("content-type", "application/json")
+                    .body(Body::from(empty_query))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

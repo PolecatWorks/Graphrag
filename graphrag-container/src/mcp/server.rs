@@ -375,7 +375,7 @@ impl GraphRagMcpServer {
             "document_delete" => {
                 let req: DocumentDeleteRequest = serde_json::from_value(arguments)
                     .map_err(|e| McpError::InvalidArguments("document_delete".to_string(), e.to_string()))?;
-                state.graph_store.delete_document(&state.pool, &req.id).await;
+                state.graph_store.delete_document(&state.pool, &req.id).await?;
                 Ok(serde_json::json!({
                     "content": [{"type": "text", "text": format!("Document '{}' deleted successfully.", req.id)}],
                     "isError": false

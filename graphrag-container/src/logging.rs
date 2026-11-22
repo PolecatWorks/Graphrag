@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum LoggingError {
@@ -7,6 +8,8 @@ pub enum LoggingError {
     InvalidLogLevel(String),
     #[error("Log filter cannot be empty if specified")]
     EmptyFilter,
+    #[error("Invalid log filter '{directive}': {reason}")]
+    InvalidFilter { directive: String, reason: String },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -43,6 +46,8 @@ impl LoggingConfig {
             }
         }
 
+        self.build_env_filter()?;
+
         Ok(())
     }
 
@@ -53,6 +58,14 @@ impl LoggingConfig {
             let lvl = self.level.trim().to_lowercase();
             format!("{},app={lvl},tower_http={lvl}", lvl)
         }
+    }
+
+    pub fn build_env_filter(&self) -> Result<EnvFilter, LoggingError> {
+        let directive = self.filter_directive();
+        EnvFilter::try_new(&directive).map_err(|err| LoggingError::InvalidFilter {
+            directive,
+            reason: err.to_string(),
+        })
     }
 }
 
@@ -108,5 +121,25 @@ mod tests {
         };
         assert!(cfg.validate().is_ok());
         assert_eq!(cfg.filter_directive(), "debug,app=trace");
+    }
+
+    #[test]
+    fn test_invalid_env_filter_rejected() {
+        for bad_filter in ["app[unclosed", "app=not_a_valid_level=extra", "[unclosed"] {
+            let cfg = LoggingConfig {
+                level: "info".to_string(),
+                filter: Some(bad_filter.to_string()),
+            };
+            let err = cfg.validate().expect_err(&format!(
+                "Expected invalid EnvFilter '{}' to fail validation",
+                bad_filter
+            ));
+            assert!(
+                matches!(err, LoggingError::InvalidFilter { ref directive, .. } if directive == bad_filter),
+                "Expected LoggingError::InvalidFilter for '{}', got: {:?}",
+                bad_filter,
+                err
+            );
+        }
     }
 }
