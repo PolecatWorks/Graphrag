@@ -29,7 +29,7 @@ MCP Protocol Handshake and Discovery
 
     # 4. Tools List
     ${tools}=    Mcp List Tools    endpoint=/api/v1/mcp
-    Length Should Be    ${tools}    26
+    Length Should Be    ${tools}    27
 
     # Verify key tool schemas exist
     ${names}=    Create List
