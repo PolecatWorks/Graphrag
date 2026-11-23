@@ -225,278 +225,368 @@ async fn hello() -> &'static str {
     "Hello, World!"
 }
 
+impl IntoResponse for GraphRagError {
+    fn into_response(self) -> axum::response::Response {
+        let status = map_graph_error_to_status(&self);
+        (
+            status,
+            Json(ErrorResponse {
+                error: self.to_string(),
+            }),
+        )
+            .into_response()
+    }
+}
+
 async fn ingest_document(
     State(state): State<AppState>,
     Json(payload): Json<IngestRequest>,
-) -> impl IntoResponse {
-    match state
+) -> Result<impl IntoResponse, GraphRagError> {
+    let (document_id, chunks_processed, nodes_extracted, edges_extracted) = state
         .graph_store
         .ingest_markdown(&state.pool, &state.llm, &payload.filename, &payload.content)
-        .await
-    {
-        Ok((document_id, chunks_processed, nodes_extracted, edges_extracted)) => (
-            StatusCode::OK,
-            Json(IngestResponse {
-                document_id,
-                chunks_processed,
-                nodes_extracted,
-                edges_extracted,
-            }),
-        )
-            .into_response(),
-        Err(err) => {
-            let status = map_graph_error_to_status(&err);
-            (
-                status,
-                Json(ErrorResponse {
-                    error: err.to_string(),
-                }),
-            )
-                .into_response()
-        }
-    }
+        .await?;
+    Ok((
+        StatusCode::OK,
+        Json(IngestResponse {
+            document_id,
+            chunks_processed,
+            nodes_extracted,
+            edges_extracted,
+        }),
+    ))
 }
 
 async fn query_graphrag(
     State(state): State<AppState>,
     Json(payload): Json<QueryRequest>,
-) -> impl IntoResponse {
-    match state
+) -> Result<impl IntoResponse, GraphRagError> {
+    let (answer, contexts) = state
         .graph_store
         .answer_question(&state.pool, &state.llm, &payload.question)
-        .await
-    {
-        Ok((answer, contexts)) => {
-            (StatusCode::OK, Json(QueryResponse { answer, contexts })).into_response()
-        }
-        Err(err) => {
-            let status = map_graph_error_to_status(&err);
-            (
-                status,
-                Json(ErrorResponse {
-                    error: err.to_string(),
-                }),
-            )
-                .into_response()
-        }
-    }
+        .await?;
+    Ok((StatusCode::OK, Json(QueryResponse { answer, contexts })))
 }
 
 async fn delete_document(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> impl IntoResponse {
-    match state.graph_store.delete_document(&state.pool, &id).await {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
-        Err(err) => {
-            let status = map_graph_error_to_status(&err);
-            (
-                status,
-                Json(ErrorResponse {
-                    error: err.to_string(),
-                }),
-            )
-                .into_response()
-        }
-    }
+) -> Result<impl IntoResponse, GraphRagError> {
+    state.graph_store.delete_document(&state.pool, &id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
+
 fn map_graph_error_to_status(err: &GraphRagError) -> StatusCode {
     match err {
-        GraphRagError::DocumentNotFound(_) | GraphRagError::NodeNotFound(_) | GraphRagError::EdgeNotFound { .. } | GraphRagError::CommunityNotFound(_) => StatusCode::NOT_FOUND,
-        GraphRagError::EmptyMarkdownContent | GraphRagError::EmptyFilename | GraphRagError::EmptyQuestion | GraphRagError::ZeroMaxChunkChars | GraphRagError::EmptyNodeLabel | GraphRagError::EmptyNodeId | GraphRagError::EmptyPredicate | GraphRagError::InvalidExtractionJson(_) | GraphRagError::InvalidSubgraphQuery(_) => StatusCode::BAD_REQUEST,
+        GraphRagError::DocumentNotFound(_)
+        | GraphRagError::NodeNotFound(_)
+        | GraphRagError::EdgeNotFound { .. }
+        | GraphRagError::CommunityNotFound(_) => StatusCode::NOT_FOUND,
+        GraphRagError::EmptyMarkdownContent
+        | GraphRagError::EmptyFilename
+        | GraphRagError::EmptyQuestion
+        | GraphRagError::ZeroMaxChunkChars
+        | GraphRagError::EmptyNodeLabel
+        | GraphRagError::EmptyNodeId
+        | GraphRagError::EmptyPredicate
+        | GraphRagError::InvalidExtractionJson(_)
+        | GraphRagError::InvalidSubgraphQuery(_) => StatusCode::BAD_REQUEST,
         GraphRagError::Llm(_) | GraphRagError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
-async fn browse_documents(State(state): State<AppState>, Query(query): Query<BrowseQuery>) -> impl IntoResponse {
-    match state.graph_store.browse_documents(&state.pool, query.q.as_deref(), query.limit, query.offset).await {
-        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn browse_documents(
+    State(state): State<AppState>,
+    Query(query): Query<BrowseQuery>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let resp = state
+        .graph_store
+        .browse_documents(&state.pool, query.q.as_deref(), query.limit, query.offset)
+        .await?;
+    Ok((StatusCode::OK, Json(resp)))
 }
 
-async fn read_document(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    match state.graph_store.read_document(&state.pool, &id).await {
-        Ok(doc) => (StatusCode::OK, Json(doc)).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn read_document(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let doc = state.graph_store.read_document(&state.pool, &id).await?;
+    Ok((StatusCode::OK, Json(doc)))
 }
 
-async fn edit_document(State(state): State<AppState>, Path(id): Path<String>, Json(payload): Json<DocumentEditRequest>) -> impl IntoResponse {
-    match state.graph_store.edit_document(&state.pool, &state.llm, &id, payload.content.as_deref(), payload.filename.as_deref(), payload.re_extract).await {
-        Ok(_) => StatusCode::OK.into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn edit_document(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<DocumentEditRequest>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    state
+        .graph_store
+        .edit_document(
+            &state.pool,
+            &state.llm,
+            &id,
+            payload.content.as_deref(),
+            payload.filename.as_deref(),
+            payload.re_extract,
+        )
+        .await?;
+    Ok(StatusCode::OK)
 }
 
-async fn add_document(State(state): State<AppState>, Json(payload): Json<IngestRequest>) -> impl IntoResponse {
-    match state.graph_store.ingest_markdown(&state.pool, &state.llm, &payload.filename, &payload.content).await {
-        Ok((document_id, chunks_processed, nodes_extracted, edges_extracted)) => (StatusCode::CREATED, Json(IngestResponse { document_id, chunks_processed, nodes_extracted, edges_extracted })).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn add_document(
+    State(state): State<AppState>,
+    Json(payload): Json<IngestRequest>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let (document_id, chunks_processed, nodes_extracted, edges_extracted) = state
+        .graph_store
+        .ingest_markdown(&state.pool, &state.llm, &payload.filename, &payload.content)
+        .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(IngestResponse {
+            document_id,
+            chunks_processed,
+            nodes_extracted,
+            edges_extracted,
+        }),
+    ))
 }
 
-async fn browse_nodes(State(state): State<AppState>, Query(query): Query<BrowseNodeQuery>) -> impl IntoResponse {
-    match state.graph_store.browse_nodes(&state.pool, query.label.as_deref(), query.layer, query.document_id.as_deref(), query.q.as_deref(), query.semantic_query.as_deref(), query.limit, query.offset).await {
-        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn browse_nodes(
+    State(state): State<AppState>,
+    Query(query): Query<BrowseNodeQuery>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let resp = state
+        .graph_store
+        .browse_nodes(
+            &state.pool,
+            query.label.as_deref(),
+            query.layer,
+            query.document_id.as_deref(),
+            query.q.as_deref(),
+            query.semantic_query.as_deref(),
+            query.limit,
+            query.offset,
+        )
+        .await?;
+    Ok((StatusCode::OK, Json(resp)))
 }
 
-async fn read_node(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    match state.graph_store.read_node(&state.pool, &id).await {
-        Ok(val) => (StatusCode::OK, Json(val)).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn read_node(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let val = state.graph_store.read_node(&state.pool, &id).await?;
+    Ok((StatusCode::OK, Json(val)))
 }
 
-async fn edit_node(State(state): State<AppState>, Path(id): Path<String>, Json(payload): Json<NodeEditRequest>) -> impl IntoResponse {
-    match state.graph_store.edit_node(&state.pool, &id, payload.label.as_deref(), payload.description.as_deref(), payload.layer, payload.document_id.as_ref().map(|o| o.as_deref())).await {
-        Ok(_) => StatusCode::OK.into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn edit_node(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<NodeEditRequest>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    state
+        .graph_store
+        .edit_node(
+            &state.pool,
+            &id,
+            payload.label.as_deref(),
+            payload.description.as_deref(),
+            payload.layer,
+            payload.document_id.as_ref().map(|o| o.as_deref()),
+        )
+        .await?;
+    Ok(StatusCode::OK)
 }
 
-async fn add_node(State(state): State<AppState>, Json(payload): Json<KnowledgeObject>) -> impl IntoResponse {
-    match state.graph_store.add_node(&state.pool, payload).await {
-        Ok(_) => StatusCode::CREATED.into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn add_node(
+    State(state): State<AppState>,
+    Json(payload): Json<KnowledgeObject>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    state.graph_store.add_node(&state.pool, payload).await?;
+    Ok(StatusCode::CREATED)
 }
 
-async fn delete_node(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    match state.graph_store.delete_node(&state.pool, &id).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn delete_node(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    state.graph_store.delete_node(&state.pool, &id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
-async fn browse_edges(State(state): State<AppState>, Query(query): Query<BrowseEdgeQuery>) -> impl IntoResponse {
-    match state.graph_store.browse_edges(&state.pool, query.source.as_deref(), query.predicate.as_deref(), query.target.as_deref(), query.document_id.as_deref(), query.limit, query.offset).await {
-        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn browse_edges(
+    State(state): State<AppState>,
+    Query(query): Query<BrowseEdgeQuery>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let resp = state
+        .graph_store
+        .browse_edges(
+            &state.pool,
+            query.source.as_deref(),
+            query.predicate.as_deref(),
+            query.target.as_deref(),
+            query.document_id.as_deref(),
+            query.limit,
+            query.offset,
+        )
+        .await?;
+    Ok((StatusCode::OK, Json(resp)))
 }
 
-async fn read_edge(State(state): State<AppState>, Path((source, predicate, target)): Path<(String, String, String)>) -> impl IntoResponse {
-    match state.graph_store.read_edge(&state.pool, &source, &predicate, &target).await {
-        Ok(val) => (StatusCode::OK, Json(val)).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn read_edge(
+    State(state): State<AppState>,
+    Path((source, predicate, target)): Path<(String, String, String)>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let val = state
+        .graph_store
+        .read_edge(&state.pool, &source, &predicate, &target)
+        .await?;
+    Ok((StatusCode::OK, Json(val)))
 }
 
-async fn edit_edge(State(state): State<AppState>, Path((source, predicate, target)): Path<(String, String, String)>, Json(payload): Json<EdgeEditRequest>) -> impl IntoResponse {
-    match state.graph_store.edit_edge(&state.pool, &source, &predicate, &target, payload.predicate.as_deref(), payload.target.as_deref(), payload.document_id.as_ref().map(|o| o.as_deref())).await {
-        Ok(_) => StatusCode::OK.into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn edit_edge(
+    State(state): State<AppState>,
+    Path((source, predicate, target)): Path<(String, String, String)>,
+    Json(payload): Json<EdgeEditRequest>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    state
+        .graph_store
+        .edit_edge(
+            &state.pool,
+            &source,
+            &predicate,
+            &target,
+            payload.predicate.as_deref(),
+            payload.target.as_deref(),
+            payload.document_id.as_ref().map(|o| o.as_deref()),
+        )
+        .await?;
+    Ok(StatusCode::OK)
 }
 
-async fn add_edge(State(state): State<AppState>, Json(payload): Json<AddEdgeRequest>) -> impl IntoResponse {
-    match state.graph_store.add_edge(&state.pool, payload.edge, payload.auto_create_nodes).await {
-        Ok(_) => StatusCode::CREATED.into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn add_edge(
+    State(state): State<AppState>,
+    Json(payload): Json<AddEdgeRequest>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    state
+        .graph_store
+        .add_edge(&state.pool, payload.edge, payload.auto_create_nodes)
+        .await?;
+    Ok(StatusCode::CREATED)
 }
 
-async fn delete_edge(State(state): State<AppState>, Path((source, predicate, target)): Path<(String, String, String)>) -> impl IntoResponse {
-    match state.graph_store.delete_edge(&state.pool, &source, &predicate, &target).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn delete_edge(
+    State(state): State<AppState>,
+    Path((source, predicate, target)): Path<(String, String, String)>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    state
+        .graph_store
+        .delete_edge(&state.pool, &source, &predicate, &target)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
-async fn browse_communities(State(state): State<AppState>, Query(query): Query<BrowseCommunityQuery>) -> impl IntoResponse {
-    match state.graph_store.browse_communities(&state.pool, query.q.as_deref(), query.member.as_deref(), query.limit, query.offset).await {
-        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn browse_communities(
+    State(state): State<AppState>,
+    Query(query): Query<BrowseCommunityQuery>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let resp = state
+        .graph_store
+        .browse_communities(
+            &state.pool,
+            query.q.as_deref(),
+            query.member.as_deref(),
+            query.limit,
+            query.offset,
+        )
+        .await?;
+    Ok((StatusCode::OK, Json(resp)))
 }
 
-async fn read_community(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    match state.graph_store.read_community(&state.pool, &id).await {
-        Ok(val) => (StatusCode::OK, Json(val)).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn read_community(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let val = state.graph_store.read_community(&state.pool, &id).await?;
+    Ok((StatusCode::OK, Json(val)))
 }
 
-async fn edit_community(State(state): State<AppState>, Path(id): Path<String>, Json(payload): Json<CommunityEditRequest>) -> impl IntoResponse {
-    match state.graph_store.edit_community(&state.pool, &id, payload.description.as_deref()).await {
-        Ok(_) => StatusCode::OK.into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn edit_community(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(payload): Json<CommunityEditRequest>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    state
+        .graph_store
+        .edit_community(&state.pool, &id, payload.description.as_deref())
+        .await?;
+    Ok(StatusCode::OK)
 }
 
-async fn rebuild_communities(State(state): State<AppState>) -> impl IntoResponse {
-    match state.graph_store.rebuild_communities(&state.pool).await {
-        Ok(summaries) => (StatusCode::OK, Json(summaries)).into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn rebuild_communities(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    let summaries = state.graph_store.rebuild_communities(&state.pool).await?;
+    Ok((StatusCode::OK, Json(summaries)))
 }
 
-async fn delete_community(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    match state.graph_store.delete_community(&state.pool, &id).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(err) => { let status = map_graph_error_to_status(&err); (status, Json(ErrorResponse { error: err.to_string() })).into_response() }
-    }
+async fn delete_community(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, GraphRagError> {
+    state.graph_store.delete_community(&state.pool, &id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn sync_dataset_ontology(
     State(state): State<AppState>,
     Json(payload): Json<crate::ontology::OntologySyncDatasetRequest>,
-) -> impl IntoResponse {
-    match state.graph_store.sync_dataset_ontology(&state.pool, payload).await {
-        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
-        Err(err) => {
-            let status = map_graph_error_to_status(&err);
-            (status, Json(ErrorResponse { error: err.to_string() })).into_response()
-        }
-    }
+) -> Result<impl IntoResponse, GraphRagError> {
+    let resp = state
+        .graph_store
+        .sync_dataset_ontology(&state.pool, payload)
+        .await?;
+    Ok((StatusCode::OK, Json(resp)))
 }
 
 async fn steward_decide_edge(
     State(state): State<AppState>,
     Json(payload): Json<crate::ontology::StewardEdgeRequest>,
-) -> impl IntoResponse {
-    match state.graph_store.steward_decide_join_edge(&state.pool, payload).await {
-        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
-        Err(err) => {
-            let status = map_graph_error_to_status(&err);
-            (status, Json(ErrorResponse { error: err.to_string() })).into_response()
-        }
-    }
+) -> Result<impl IntoResponse, GraphRagError> {
+    let resp = state
+        .graph_store
+        .steward_decide_join_edge(&state.pool, payload)
+        .await?;
+    Ok((StatusCode::OK, Json(resp)))
 }
 
 async fn steward_decide_field(
     State(state): State<AppState>,
     Json(payload): Json<crate::ontology::StewardFieldRequest>,
-) -> impl IntoResponse {
-    match state.graph_store.steward_decide_field(&state.pool, payload).await {
-        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
-        Err(err) => {
-            let status = map_graph_error_to_status(&err);
-            (status, Json(ErrorResponse { error: err.to_string() })).into_response()
-        }
-    }
+) -> Result<impl IntoResponse, GraphRagError> {
+    let resp = state
+        .graph_store
+        .steward_decide_field(&state.pool, payload)
+        .await?;
+    Ok((StatusCode::OK, Json(resp)))
 }
 
 async fn find_ontology_join_path(
     State(state): State<AppState>,
     Json(payload): Json<crate::ontology::JoinPathRequest>,
-) -> impl IntoResponse {
-    match state.graph_store.find_ontology_join_path(&state.pool, payload).await {
-        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
-        Err(err) => {
-            let status = map_graph_error_to_status(&err);
-            (status, Json(ErrorResponse { error: err.to_string() })).into_response()
-        }
-    }
+) -> Result<impl IntoResponse, GraphRagError> {
+    let resp = state
+        .graph_store
+        .find_ontology_join_path(&state.pool, payload)
+        .await?;
+    Ok((StatusCode::OK, Json(resp)))
 }
 
 async fn export_ontology_subgraph(
     State(state): State<AppState>,
     Query(query): Query<OntologySubgraphQuery>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, GraphRagError> {
     let layers = match query.layers {
         Some(ref raw) if !raw.trim().is_empty() => {
             let mut parsed = Vec::new();
@@ -505,18 +595,10 @@ async fn export_ontology_subgraph(
                 if p.is_empty() {
                     continue;
                 }
-                match p.parse::<u8>() {
-                    Ok(v) => parsed.push(v),
-                    Err(_) => {
-                        return (
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorResponse {
-                                error: format!("invalid layer value: '{}'", p),
-                            }),
-                        )
-                            .into_response();
-                    }
-                }
+                let v = p.parse::<u8>().map_err(|_| {
+                    GraphRagError::InvalidSubgraphQuery(format!("invalid layer value: '{}'", p))
+                })?;
+                parsed.push(v);
             }
             Some(parsed)
         }
@@ -543,17 +625,11 @@ async fn export_ontology_subgraph(
         max_edges: query.max_edges,
     };
 
-    match state
+    let resp = state
         .graph_store
         .export_ontology_subgraph(&state.pool, &state.config.ontology.subgraph, req)
-        .await
-    {
-        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
-        Err(err) => {
-            let status = map_graph_error_to_status(&err);
-            (status, Json(ErrorResponse { error: err.to_string() })).into_response()
-        }
-    }
+        .await?;
+    Ok((StatusCode::OK, Json(resp)))
 }
 
 

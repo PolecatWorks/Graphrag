@@ -703,8 +703,8 @@ impl GraphStore {
             id: String,
             filename: String,
             content: String,
-            updated_at_text: Option<String>,
-            total_count: Option<i64>,
+            updated_at_text: String,
+            total_count: i64,
         }
 
         let rows = if let Some(q) = query {
@@ -739,13 +739,13 @@ impl GraphStore {
         let mut total = 0;
         for row in rows {
             if total == 0 {
-                total = row.total_count.unwrap_or(0) as usize;
+                total = row.total_count as usize;
             }
             items.push(DocumentMetadata {
                 id: row.id,
                 filename: row.filename,
                 content: row.content,
-                updated_at: row.updated_at_text.unwrap_or_default(),
+                updated_at: row.updated_at_text,
             });
         }
 
@@ -767,7 +767,7 @@ impl GraphStore {
             id: String,
             filename: String,
             content: String,
-            updated_at_text: Option<String>,
+            updated_at_text: String,
         }
         let row: Option<DocRowId> = sqlx::query_as(
             "SELECT id, filename, content, updated_at::TEXT as updated_at_text
@@ -782,7 +782,7 @@ impl GraphStore {
                 id: r.id.clone(),
                 filename: r.filename,
                 content: r.content,
-                updated_at: r.updated_at_text.unwrap_or_default(),
+                updated_at: r.updated_at_text,
             };
 
             let extracted_nodes: Vec<String> = sqlx::query_scalar("SELECT id FROM knowledge_objects WHERE document_id = $1")
@@ -1034,16 +1034,16 @@ impl GraphStore {
         let mut total = 0;
         for row in rows {
             if total == 0 {
-                total = row.try_get::<i64, _>("total_count").unwrap_or(0) as usize;
+                total = row.try_get::<i64, _>("total_count")? as usize;
             }
-            let emb_text: String = row.try_get("emb_text").unwrap_or_else(|_| "[]".to_string());
-            let embedding: Vec<f32> = serde_json::from_str(&emb_text).unwrap_or_default();
+            let emb_text: String = row.try_get("emb_text")?;
+            let embedding: Vec<f32> = serde_json::from_str(&emb_text)?;
             items.push(KnowledgeObject {
-                id: row.try_get("id").unwrap_or_default(),
-                label: row.try_get("label").unwrap_or_default(),
-                description: row.try_get("description").unwrap_or_default(),
-                layer: row.try_get("layer").unwrap_or(0),
-                document_id: row.try_get("document_id").ok(),
+                id: row.try_get("id")?,
+                label: row.try_get("label")?,
+                description: row.try_get("description")?,
+                layer: row.try_get("layer")?,
+                document_id: row.try_get("document_id")?,
                 embedding,
             });
         }
@@ -1073,14 +1073,14 @@ impl GraphStore {
         .await?;
 
         if let Some(r) = row {
-            let emb_text: String = r.try_get("emb_text").unwrap_or_else(|_| "[]".to_string());
-            let embedding: Vec<f32> = serde_json::from_str(&emb_text).unwrap_or_default();
+            let emb_text: String = r.try_get("emb_text")?;
+            let embedding: Vec<f32> = serde_json::from_str(&emb_text)?;
             let node = KnowledgeObject {
-                id: r.try_get("id").unwrap_or_default(),
-                label: r.try_get("label").unwrap_or_default(),
-                description: r.try_get("description").unwrap_or_default(),
-                layer: r.try_get("layer").unwrap_or(0),
-                document_id: r.try_get("document_id").ok(),
+                id: r.try_get("id")?,
+                label: r.try_get("label")?,
+                description: r.try_get("description")?,
+                layer: r.try_get("layer")?,
+                document_id: r.try_get("document_id")?,
                 embedding,
             };
 
@@ -1138,10 +1138,10 @@ impl GraphStore {
         .await?;
 
         if let Some(r) = row {
-            let mut l: String = r.try_get("label").unwrap_or_default();
-            let mut d: String = r.try_get("description").unwrap_or_default();
-            let mut ly: i32 = r.try_get("layer").unwrap_or(0);
-            let mut doc: Option<String> = r.try_get("document_id").unwrap_or(None);
+            let mut l: String = r.try_get("label")?;
+            let mut d: String = r.try_get("description")?;
+            let mut ly: i32 = r.try_get("layer")?;
+            let mut doc: Option<String> = r.try_get("document_id")?;
 
             if let Some(nl) = label {
                 l = nl.to_string();
@@ -1336,13 +1336,13 @@ impl GraphStore {
         let mut total = 0;
         for row in rows {
             if total == 0 {
-                total = row.try_get::<i64, _>("total_count").unwrap_or(0) as usize;
+                total = row.try_get::<i64, _>("total_count")? as usize;
             }
             items.push(GraphTuple {
-                source: row.try_get("source_id").unwrap_or_default(),
-                predicate: row.try_get("predicate").unwrap_or_default(),
-                target: row.try_get("target_id").unwrap_or_default(),
-                document_id: row.try_get("document_id").ok(),
+                source: row.try_get("source_id")?,
+                predicate: row.try_get("predicate")?,
+                target: row.try_get("target_id")?,
+                document_id: row.try_get("document_id")?,
             });
         }
 
@@ -1379,10 +1379,10 @@ impl GraphStore {
 
         if let Some(r) = row {
             let edge = GraphTuple {
-                source: r.try_get("source_id").unwrap_or_default(),
-                predicate: r.try_get("predicate").unwrap_or_default(),
-                target: r.try_get("target_id").unwrap_or_default(),
-                document_id: r.try_get("document_id").ok(),
+                source: r.try_get("source_id")?,
+                predicate: r.try_get("predicate")?,
+                target: r.try_get("target_id")?,
+                document_id: r.try_get("document_id")?,
             };
 
             #[derive(sqlx::FromRow, Serialize)]
@@ -1442,7 +1442,7 @@ impl GraphStore {
             let mut final_p = norm_p.clone();
             let mut final_t = norm_t.clone();
             use sqlx::Row;
-            let mut final_doc: Option<String> = r.try_get("document_id").unwrap_or(None);
+            let mut final_doc: Option<String> = r.try_get("document_id")?;
 
             if let Some(np) = new_predicate {
                 final_p = np.trim().to_ascii_uppercase().replace(' ', "_");
@@ -1679,20 +1679,22 @@ impl GraphStore {
         let mut total = 0;
         for row in rows {
             if total == 0 {
-                total = row.try_get::<i64, _>("total_count").unwrap_or(0) as usize;
+                total = row.try_get::<i64, _>("total_count")? as usize;
             }
-            let comm_id: String = row.try_get("id").unwrap_or_default();
+            let comm_id: String = row.try_get("id")?;
 
-            let count_res: Option<i64> = sqlx::query_scalar("SELECT count(*) FROM graph_tuples WHERE source_id = $1 AND predicate = 'SUMMARIZES'")
-                .bind(&comm_id)
-                .fetch_optional(pool)
-                .await?;
+            let member_count: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM graph_tuples WHERE source_id = $1 AND predicate = 'SUMMARIZES'",
+            )
+            .bind(&comm_id)
+            .fetch_one(pool)
+            .await?;
 
             items.push(serde_json::json!({
                 "id": comm_id,
-                "description": row.try_get::<String, _>("description").unwrap_or_default(),
-                "layer": row.try_get::<i32, _>("layer").unwrap_or(1),
-                "member_count": count_res.unwrap_or(0)
+                "description": row.try_get::<String, _>("description")?,
+                "layer": row.try_get::<i32, _>("layer")?,
+                "member_count": member_count
             }));
         }
 
@@ -1721,13 +1723,13 @@ impl GraphStore {
         .await?;
 
         if let Some(r) = row {
-            let emb_text: String = r.try_get("emb_text").unwrap_or_else(|_| "[]".to_string());
-            let embedding: Vec<f32> = serde_json::from_str(&emb_text).unwrap_or_default();
+            let emb_text: String = r.try_get("emb_text")?;
+            let embedding: Vec<f32> = serde_json::from_str(&emb_text)?;
             let summary = KnowledgeObject {
-                id: r.try_get("id").unwrap_or_default(),
-                label: r.try_get("label").unwrap_or_default(),
-                description: r.try_get("description").unwrap_or_default(),
-                layer: r.try_get("layer").unwrap_or(1),
+                id: r.try_get("id")?,
+                label: r.try_get("label")?,
+                description: r.try_get("description")?,
+                layer: r.try_get("layer")?,
                 document_id: None,
                 embedding,
             };
@@ -1761,9 +1763,9 @@ impl GraphStore {
                 let edges_rows = q.fetch_all(pool).await?;
                 for e_row in edges_rows {
                     intra_edges.push(GraphTuple {
-                        source: e_row.try_get("source_id").unwrap_or_default(),
-                        predicate: e_row.try_get("predicate").unwrap_or_default(),
-                        target: e_row.try_get("target_id").unwrap_or_default(),
+                        source: e_row.try_get("source_id")?,
+                        predicate: e_row.try_get("predicate")?,
+                        target: e_row.try_get("target_id")?,
                         document_id: None,
                     });
                 }
@@ -1796,7 +1798,7 @@ impl GraphStore {
         .await?;
 
         if let Some(r) = row {
-            let mut d: String = r.try_get("description").unwrap_or_default();
+            let mut d: String = r.try_get("description")?;
 
             if let Some(nd) = new_description {
                 d = nd.to_string();
@@ -1846,9 +1848,9 @@ impl GraphStore {
             .await?;
         for r in n_rows {
             all_layer0_nodes.push(KnowledgeObject {
-                id: r.try_get("id").unwrap_or_default(),
-                label: r.try_get("label").unwrap_or_default(),
-                description: r.try_get("description").unwrap_or_default(),
+                id: r.try_get("id")?,
+                label: r.try_get("label")?,
+                description: r.try_get("description")?,
                 layer: 0,
                 document_id: None,
                 embedding: vec![],
@@ -1861,9 +1863,9 @@ impl GraphStore {
             .await?;
         for r in e_rows {
             all_layer0_edges.push(GraphTuple {
-                source: r.try_get("source_id").unwrap_or_default(),
-                predicate: r.try_get("predicate").unwrap_or_default(),
-                target: r.try_get("target_id").unwrap_or_default(),
+                source: r.try_get("source_id")?,
+                predicate: r.try_get("predicate")?,
+                target: r.try_get("target_id")?,
                 document_id: None,
             });
         }
